@@ -7,7 +7,6 @@ use Time::HiRes 'time';
 use Linux::FD::Timer;
 use IO::Handle;
 use Fcntl;
-use constant EPOLLONESHOT => 1<<30; # missing from Sys::Syscall
 
 use Exporter 'import';
 our @EXPORT = qw(setTimeout setInterval
