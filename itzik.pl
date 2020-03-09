@@ -7,24 +7,17 @@ my %connected;
 
 tcpServer(23456, '127.0.0.1', evOut {
   my $h = shift;
-  # save each connection
   $connected{$h->{fh}} = $h;
   1;
+} evHup {
+  delete $connected{shift->{fh}};
 } evLine {
   print "Recieved unexpected: $_";
 });
 
-# example of output to all and cleanup disconnected ones
-
+# example of output to all
 setInterval {
-  foreach my $k (keys %connected) {
-    my $fh = $connected{$k}->{fh};
-    if ($fh) {
-      print $fh "Hello world!\n";
-    } else {
-      delete $connected{$k};
-    }
-  }
+  print { $_->{fh} } "Hello world!\n" foreach (values %connected);
 } 1000;
 
 tcpClient(23456, '127.0.0.1', evLine { print; });

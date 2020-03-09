@@ -100,7 +100,6 @@ sub evIn (&;@) { goto &evInRef; }
 sub evOnce (@) {
   my $h = &_agEv;
   $h->{tryOnce} = 1;
-  $h->{hup} = sub { 0; };
   $h;
 }
 
@@ -221,7 +220,7 @@ sub _event {
     }
   }
   if (!$res and !$!{EAGAIN}) {
-    if ($h->{hup}->($h)) {
+    if ($h->{hup}->($h) && !$h->{tryOnce}) {
       _reopen($h);
     } else {
       delInLoop($h);
