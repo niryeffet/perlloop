@@ -17,7 +17,8 @@ tcpServer(23456, '127.0.0.1', evOut {
 
 # example of output to all
 setInterval {
-  print { $_->{fh} } "Hello world!\n" foreach (values %connected);
+  # writing to a socket may fail
+  eval { print { $_->{fh} } "Hello world!\n" } foreach values %connected;
 } 1000;
 
 tcpClient(23456, '127.0.0.1', evLine { print; });

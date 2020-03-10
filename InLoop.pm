@@ -51,7 +51,7 @@ sub _agEv {
   $h;
 }
 
-sub evOnRef { 
+sub evOnRef {
   my $open = shift;
   my $h = &_agEv;
   $h->{open} = $open;
@@ -59,30 +59,30 @@ sub evOnRef {
   $h->{inEv} = sub { } if !$h->{inEv};
   _add($h);
   $h;
-} 
+}
 
-sub evLineRef { 
+sub evLineRef {
   my $inEv = shift;
   my $h = &_agEv;
   $h->{inEv} = $inEv;
   $h->{inMode} = 0;
   $h;
-} 
+}
 
 sub evHupRef {
   my $hup = shift;
   my $h = &_agEv;
   $h->{hup} = $hup;
   $h;
-} 
+}
 
-sub evOutRef { 
+sub evOutRef {
   my $outEv = shift;
   my $h = &_agEv;
   $h->{outEv} = $outEv;
   _epollCtl(EPOLL_CTL_MOD, $h) if $h->{fh};
   $h;
-} 
+}
 
 sub evInRef {
   my $inEv = shift;
@@ -163,7 +163,7 @@ sub _reopen {
 
 sub doBlock {
   my $fh = shift;
-  fcntl($fh, F_SETFL, fcntl($fh, F_GETFL, 0) & ~O_NONBLOCK); 
+  fcntl($fh, F_SETFL, fcntl($fh, F_GETFL, 0) & ~O_NONBLOCK);
   $fh
 }
 
@@ -201,7 +201,7 @@ sub _event {
       evOutRef(undef, $h);
     } elsif ($!{EAGAIN}) {
       evOutRef($o, $h);
-    } else {     
+    } else {
       _reopen($h);
     }
     return;

@@ -32,7 +32,7 @@ sub tcpServer {
     ($h->{port} = $port || (sockaddr_in(getsockname($_)))[0]) and
     listen($_, 128) or (print(STDERR "can't bind or listen: $!\n"), close($_), return 0);
   } evIn {
-    my $s; 
+    my $s;
     evOnRef(sub { $_ = $s; 1; }, evOnce @evMethods) if accept($s, $_);
   };
 }
