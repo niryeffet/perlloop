@@ -4,14 +4,13 @@ use strict;
 use Exporter 'import';
 
 our @EXPORT = qw(epoll_ctl epoll_create epoll_wait
-                 EPOLLIN EPOLLOUT EPOLLERR EPOLLHUP EPOLLRDBAND EPOLLONESHOT
+                 EPOLLIN EPOLLOUT EPOLLERR EPOLLHUP EPOLLONESHOT
                  EPOLL_CTL_ADD EPOLL_CTL_DEL EPOLL_CTL_MOD);
 
 use constant EPOLLIN       => 1;
 use constant EPOLLOUT      => 4;
 use constant EPOLLERR      => 8;
 use constant EPOLLHUP      => 16;
-use constant EPOLLRDBAND   => 128;
 use constant EPOLLONESHOT  => 1<<30;
 use constant EPOLL_CTL_ADD => 1;
 use constant EPOLL_CTL_DEL => 2;

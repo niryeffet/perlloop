@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 use strict;
 use lib '.';
 use InLoop;
@@ -12,7 +13,7 @@ tcpServer(23456, '127.0.0.1', evOut {
 } evHup {
   delete $connected{shift->{fh}};
 } evLine {
-  print "Recieved unexpected: $_";
+  print "Received unexpected: $_";
 });
 
 # example of output to all
