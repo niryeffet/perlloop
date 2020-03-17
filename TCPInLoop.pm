@@ -18,11 +18,9 @@ sub tcpClient {
 }
 
 sub tcpServer {
-  my $port = shift;
-  my $address = shift;
-  my @evMethods = @_;
-  $port = $port * 1;
-  $address = '0.0.0.0' if !$address;
+  my $port = shift() + 0;
+  my $address = shift || '0.0.0.0';
+  my $evMethods = evOnce ({}, @_);
 
   evOn {
     my $h = shift;
@@ -33,7 +31,7 @@ sub tcpServer {
     listen($_, 128) or (print(STDERR "can't bind or listen: $!\n"), close($_), return 0);
   } evIn {
     my $s;
-    evOnRef(sub { $_ = $s; 1; }, evOnce @evMethods) if accept($s, $_);
+    evOn { $_ = $s; 1; } $evMethods if accept($s, $_);
   };
 }
 

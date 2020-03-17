@@ -46,14 +46,14 @@ sub setInterval (&$) {
 }
 
 sub _agEv {
-  my $h = {};
+  my $h = shift || {};
   @{$h}{keys %$_} = values %$_ foreach @_;
   $h;
 }
 
 sub evOnRef {
   my $open = shift;
-  my $h = &_agEv;
+  my $h = _agEv({}, @_); # always new obj
   $h->{open} = $open;
   $h->{hup} = sub { 1; } if !$h->{hup};
   $h->{inEv} = sub { } if !$h->{inEv};

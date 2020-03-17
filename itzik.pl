@@ -16,10 +16,15 @@ tcpServer(23456, '127.0.0.1', evOut {
   print "Received unexpected: $_";
 });
 
-# example of output to all
+sub tellAll {
+  my $msg = shift;
+  # writing to a socket may fail, ignore
+  eval { print { $_->{fh} } $msg } foreach values %connected;
+}
+
+# test
 setInterval {
-  # writing to a socket may fail
-  eval { print { $_->{fh} } "Hello world!\n" } foreach values %connected;
+  tellAll("Hello world\n");
 } 1000;
 
 tcpClient(23456, '127.0.0.1', evLine { print; });
