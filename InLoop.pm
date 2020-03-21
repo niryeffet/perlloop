@@ -18,6 +18,9 @@ my $reopen = 1000; # reopen attempt after n ms
 my @fds;
 my $epfd = epoll_create(10);
 
+#ignore some signals, event will rise
+$SIG{HUP} = $SIG{PIPE} = $SIG{CHLD} = 'IGNORE';
+
 sub getOpenTime {
   $_[0]->{openTime};
 }
@@ -164,7 +167,7 @@ sub _reopen {
 sub doBlock {
   my $fh = shift;
   fcntl($fh, F_SETFL, fcntl($fh, F_GETFL, 0) & ~O_NONBLOCK);
-  $fh
+  $fh;
 }
 
 sub nonblock {
@@ -231,9 +234,14 @@ sub _event {
 }
 
 # attempt to correct STDIN before exit
-END { doBlock(*STDIN); }
+END {
+  doBlock(*STDIN);
+}
 
 # most simple event loop
-END { my @evs; epoll_wait($epfd, 1, -1, \@evs) == 1 and _event(shift @evs) while (@fds); }
+END {
+  my @evs;
+  epoll_wait($epfd, 1, -1, \@evs) == 1 and _event(shift @evs) while (@fds);
+}
 
 1;
