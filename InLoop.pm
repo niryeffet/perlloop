@@ -14,9 +14,8 @@ our @EXPORT = qw(setTimeout setInterval
                  evOn evLine evHup evIn evOut evOnce evOpen
                  evOnRef evLineRef evHupRef evInRef evOutRef);
 
-my $reopen = 1000; # reopen attempt after n ms
+use constant REOPEN => 1000; # reopen attempt after n ms
 my @fds;
-my $epfd = epoll_create(10);
 
 #ignore some signals, event will rise
 $SIG{HUP} = $SIG{PIPE} = $SIG{CHLD} = 'IGNORE';
@@ -134,7 +133,7 @@ sub exitInLoop {
 
 sub _epollCtl {
   my ($op, $h) = @_;
-  epoll_ctl($epfd, $op, fileno $h->{fh}, $h->{outEv} ? EPOLLIN | EPOLLOUT | EPOLLONESHOT : EPOLLIN);
+  epoll_ctl($op, fileno $h->{fh}, $h->{outEv} ? EPOLLIN | EPOLLOUT | EPOLLONESHOT : EPOLLIN);
 }
 
 sub _del { # close, allow reopening
@@ -148,14 +147,14 @@ sub _del { # close, allow reopening
     close($fh);
   } else {
     # never close stdin stdout stderr
-    epoll_ctl($epfd, EPOLL_CTL_DEL, $fn, 0);
+    epoll_ctl(EPOLL_CTL_DEL, $fn);
   }
 }
 
 sub _schedAdd {
   my $h = $_[0];
   return if $h->{tryOnce};
-  my $w = int(($h->{openTime} - time()) * 1000 + .5) + $reopen;
+  my $w = int(($h->{openTime} - time()) * 1000 + .5) + REOPEN;
   $w > 0 ? setTimeout { _add($h); } $w : &_add;
 }
 
@@ -241,7 +240,7 @@ END {
 # most simple event loop
 END {
   my @evs;
-  epoll_wait($epfd, 1, -1, \@evs) == 1 and _event(shift @evs) while (@fds);
+  epoll_wait(1, -1, \@evs) == 1 && _event(shift @evs) while (@fds);
 }
 
 1;
