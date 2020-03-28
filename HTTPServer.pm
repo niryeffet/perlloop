@@ -1,16 +1,10 @@
 use strict;
 
-package HTTPServer;
+package HTTPResponse;
 use POSIX qw(strftime);
-use lib '.';
-use TCPInLoop;
-use InLoop;
 use JSON::PP;
 
-use Exporter 'import';
-our @EXPORT = qw(httpResponse httpServer);
-
-my %status = (
+our %status = (
   200 => '200 Ok',
   204 => '204 No Content',
   404 => '404 Not Found',
@@ -18,7 +12,7 @@ my %status = (
 );
 
 sub httpResponse {
-  my ($status, $data, $ctype, $header) = @_;
+  my ($h, $status, $data, $ctype, $header) = @_;
   $status = $status{$status} || $status;
   $data = $status."\n" if !defined($data) && $status != 204;
   if (!defined($ctype)) {
@@ -29,16 +23,26 @@ sub httpResponse {
       $ctype = 'text/plain';
     }
   }
-  if ($header ne '' and !$header =~ /\r\n$/s) {
-    $header .= "\r\n";
-  }
-  return "HTTP/1.1 $status\r\n".
-         "Server: HTTPInLoop\r\n".
-         "Date: ${\strftime('%a, %d %b %Y %T GMT', gmtime())}\r\n".
-         "Content-Type: $ctype\r\n".
-         "Content-Length: ${\(length($data) * 1)}\r\n".
-         "Connection: keep-alive\r\n$header\r\n$data";
+  $header .= "\r\n" if $header ne '' and !$header =~ /\r\n$/s;
+  my $fh = $h->{fh};
+  print $fh
+    "HTTP/1.1 $status\r\n".
+    "Server: HTTPInLoop\r\n".
+    "Date: ${\strftime('%a, %d %b %Y %T GMT', gmtime())}\r\n".
+    "Content-Type: $ctype\r\n".
+    "Content-Length: ${\(length($data) * 1)}\r\n".
+    "Connection: keep-alive\r\n$header\r\n";
+  print $fh $data;
 }
+
+package HTTPServer;
+use lib '.';
+use TCPInLoop;
+use InLoop;
+use JSON::PP;
+
+use Exporter 'import';
+our @EXPORT = qw(httpServer);
 
 sub _parseCookie {
   my $cookie = {};
@@ -73,7 +77,9 @@ sub _parseQuerystring {
 sub httpServer {
   my ($port, $address, $router) = @_;
 
-  return tcpServer($port, $address, evLine {
+  return tcpServer($port, $address, evOut {
+    bless shift, 'HTTPResponse';
+  } evLine {
     my $h = $_[0];
     $h->{data} .= $_;
     my $rest;
@@ -111,7 +117,7 @@ sub httpServer {
           last;
         } else { last; }
       }
-      print { $h->{fh} } httpResponse($status) if $status;
+      $h->httpResponse($status) if $status;
       delete $h->{body};
     } while ($h->{data} ne '');
   });
