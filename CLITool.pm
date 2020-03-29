@@ -12,7 +12,7 @@ sub new {
   my $cli = addHelp({ # bless
     '(exit|quit)$' => [sub {
       my $h = shift;
-      (fileno $h->{fh}) == 0 ? exitInLoop : delInLoop($h);
+      (fileno $h->{fh}) == 0 ? exitInLoop : $h->evOff;
       2; # don't show prompt
     }, 'exit/quit - leave the program (terminate on console)'],
     'restart$' => [sub {

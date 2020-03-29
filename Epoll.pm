@@ -9,6 +9,7 @@ our @EXPORT = qw(epoll_ctl epoll_wait
 
 BEGIN { require 'syscall.ph'; }
 
+use constant EPOLL_CLOEXEC => 1<<19;
 use constant {
   EPOLLIN          => 1,
   EPOLLOUT         => 4,
@@ -18,7 +19,7 @@ use constant {
   EPOLL_CTL_ADD    => 1,
   EPOLL_CTL_DEL    => 2,
   EPOLL_CTL_MOD    => 3,
-  epoll_fd         => syscall(SYS_epoll_create(), 1),
+  epoll_fd         => syscall(SYS_epoll_create1(), EPOLL_CLOEXEC),
   SYS_epoll_ctl    => SYS_epoll_ctl(),
   SYS_epoll_wait   => SYS_epoll_wait(),
 };

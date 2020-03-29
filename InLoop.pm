@@ -7,12 +7,11 @@ use Time::HiRes 'time';
 use Linux::FD::Timer;
 use IO::Handle;
 use Fcntl;
+use InLoop::methods;
 
 use Exporter 'import';
-our @EXPORT = qw(setTimeout setInterval
-                 addInLoop delInLoop nonblock exitInLoop getOpenTime
-                 evOn evLine evHup evIn evOut evOnce evOpen
-                 evOnRef evLineRef evHupRef evInRef evOutRef);
+our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
+                 evOn evLine evHup evIn evOut evOnce evOpen);
 
 use constant REOPEN => 1000; # reopen attempt after n ms
 my @fds;
@@ -37,7 +36,7 @@ sub setTimeout (&$) {
   my ($func, $ms) = @_;
   _createTimer($ms / 1000, undef, sub {
     &$func;
-    &delInLoop;
+    &evOff;
   });
 }
 
@@ -56,6 +55,7 @@ sub _agEv {
 sub evOnRef {
   my $open = shift;
   my $h = _agEv({}, @_); # always new obj
+  bless $h, "InLoop::methods";
   $h->{open} = $open;
   $h->{hup} = sub { 1; } if !$h->{hup};
   $h->{inEv} = sub { } if !$h->{inEv};
@@ -105,19 +105,7 @@ sub evOnce (@) {
   $h;
 }
 
-sub addInLoop {
-  my $h = {
-    open=>   $_[0],               # open is mandatory, true or EINPROGRESS as success
-    inEv=>   $_[1] || sub { },    # empty sub to consume input if no own event
-    hup=>    $_[2] || sub { 1; }, # own hup handler. 1 to reopen 0 to del
-    outEv=>  $_[3],               # out event handler will turn on EPOLLOUT | EPOLLONESHOT and will be deleted (set new with outInLoop())
-    inMode=> $_[4],               # undef for the default line reader. 1 for own reader, good for accept, binary data, ETC.
-  };
-  _add($h);
-  $h;
-}
-
-sub delInLoop { # remove, without reopening
+sub evOff (@) {
   my $h = $_[0];
   delete $h->{open};
   delete $h->{outEv};
@@ -127,7 +115,7 @@ sub delInLoop { # remove, without reopening
 }
 
 sub exitInLoop {
-  delInLoop($_) foreach grep { defined } @fds;
+  evOff($_) foreach grep { defined } @fds;
   0;
 }
 
@@ -218,14 +206,14 @@ sub _event {
     my $fn = fileno $fh;
     while (<$fh>) {
       $e->($h);
-      return if !$fds[$fn]; # $h was deleted via delInLoop! bail.
+      return if !$fds[$fn]; # $h was deleted via evOff! bail.
     }
   }
   if (!$res and !$!{EAGAIN}) {
     if ($h->{hup}->($h) && !$h->{tryOnce}) {
       _reopen($h);
     } else {
-      delInLoop($h);
+      evOff($h);
     }
   } elsif ($o = $h->{outEv}) { # check outEv again, things might have shifted
     evOutRef($o, $h);

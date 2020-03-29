@@ -1,6 +1,8 @@
 use strict;
 
 package HTTPResponse;
+use lib '.';
+use parent 'InLoop::methods';
 use POSIX qw(strftime);
 use JSON::PP;
 
