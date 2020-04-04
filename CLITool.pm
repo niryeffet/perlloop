@@ -6,6 +6,7 @@ use InLoop;
 
 use Exporter 'import';
 our @EXPORT = qw(subCli);
+use constant HELPKEY => '(help|\?)( |$)';
 
 my $ignore = [sub { 1; }];
 sub new {
@@ -43,8 +44,7 @@ sub processCli {
 sub addHelp {
   my $cli = bless shift;
   my $cmd = $_[0] ? "$_[0] " : '';
-  my $helpKey = '(help|\?)( |$)';
-  $cli->{$helpKey} = [sub {
+  $cli->{&HELPKEY} = [sub {
     if (/^$/ or /^\?/ ) {
       print $_[1]->{prompt}->()."usage:\n";
       print "$_->[1]\n" foreach sort { $a->[1] cmp $b->[1] } grep { $_->[1] ne '' } values %$cli;
@@ -55,7 +55,7 @@ sub addHelp {
       print "No help for '$cmd'\n" if !$cli->processCli(@_);
     }
     1;
-  }, 'help, ? - show help'] if !$cli->{$helpKey};
+  }, 'help, ? - show help'] if !$cli->{&HELPKEY};
   $cli->{'$'} = [sub { $_[1]->{set}->(); } ] if !$cli->{'$'};
   $cli->{'\.\.$'} = [sub { $_[1]->{leave}->(); }] if !$cli->{'\.\.$'};
   $cli->{'\.\.\.$'} = [sub { $_[1]->{top}->(); }] if !$cli->{'\.\.\.$'};
