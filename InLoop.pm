@@ -105,7 +105,7 @@ sub evOnce (@) {
   $h;
 }
 
-sub evOff (@) {
+sub evOff ($) {
   my $h = $_[0];
   delete $h->{open};
   delete $h->{outEv};
