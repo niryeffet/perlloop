@@ -45,14 +45,15 @@ sub addHelp {
   my $cli = bless shift;
   my $cmd = $_[0] ? "$_[0] " : '';
   $cli->{&HELPKEY} = [sub {
+    my $h = $_[0];
     if (/^$/ or /^\?/ ) {
-      print $_[1]->{prompt}->()."usage:\n";
-      print "$_->[1]\n" foreach sort { $a->[1] cmp $b->[1] } grep { $_->[1] ne '' } values %$cli;
-      print ".. - go back one level\n... - top level\n" if !$_[1]->{isAccum}->();
+      $h->say($_[1]->{prompt}->()."usage:");
+      $h->say($_->[1]) foreach sort { $a->[1] cmp $b->[1] } grep { $_->[1] ne '' } values %$cli;
+      $h->say(".. - go back one level\n... - top level") if !$_[1]->{isAccum}->();
     } else {
       my $cmd = $_;
       $_ .= ' ?';
-      print "No help for '$cmd'\n" if !$cli->processCli(@_);
+      $h->say("No help for '$cmd'") if !$cli->processCli(@_);
     }
     1;
   }, 'help, ? - show help'] if !$cli->{&HELPKEY};
@@ -103,12 +104,10 @@ sub processLine {
     @cliAccum = ();
     @promptAccum = ();
     my $h = shift;
-    my $fd = select($h->{out} || $h->{fh});
     chomp; s/\s*$//; s/^\s*//; s/\s+/ /g;
     my $success = $clis[0]->processCli($h, $methods);
-    print "Unknow command '$_'.\n" if !$success;
-    print $prompts[0].'> ' if $success != 2;
-    select($fd);
+    $h->say("Unknow command '$_'.") if !$success;
+    $h->write($prompts[0].'> ') if $success != 2;
   };
 }
 

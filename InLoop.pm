@@ -109,7 +109,6 @@ sub evOff ($) {
   my $h = $_[0];
   delete $h->{open};
   delete $h->{outEv};
-  delete $h->{out};
   kill 'TERM', $h->{child} if $h->{child};
   _del($h);
 }
@@ -127,6 +126,7 @@ sub _epollCtl {
 sub _del { # close, allow reopening
   my $h = $_[0];
   delete $h->{child};
+  delete $h->{out};
   my $fh = delete $h->{fh};
   return 0 if !$fh;
   my $fn = fileno $fh;
@@ -144,11 +144,6 @@ sub _schedAdd {
   return if $h->{tryOnce};
   my $w = int(($h->{openTime} - time()) * 1000 + .5) + REOPEN;
   $w > 0 ? setTimeout { _add($h); } $w : &_add;
-}
-
-sub _reopen {
-  &_del;
-  &_schedAdd;
 }
 
 sub doBlock {
@@ -172,6 +167,7 @@ sub _add {
   undef $_;
   ($child = $s->($h)) or $!{EINPROGRESS} or return &_schedAdd;
   $h->{fh} = $_ if $_ and !$h->{fh};
+  $h->{out} = $h->{fh} if !$h->{out};
   $h->{child} = $child if $child > 1; # pid of subprocess
   my $fh = nonblock($h->{fh});
   $fh->autoflush;
@@ -180,19 +176,29 @@ sub _add {
   _epollCtl(EPOLL_CTL_ADD, $h);
 }
 
+sub _hangup {
+  my $h = shift;
+  if ($h->{hup}->($h) && !$h->{tryOnce}) {
+    _del($h);
+    _schedAdd($h);
+  } else {
+    evOff($h);
+  }
+}
+
 sub _event {
   my ($fn, $epev) = @{$_[0]};
   my $h = $fds[$fn];
   my $o = $h->{outEv};
   # err and hup are ignored - err are rare, and will fail also on read, hup anyway may have data to consume.
   if ($epev & EPOLLOUT) {
-    $_ = $h->{out} || $h->{fh};
+    $_ = $h->{out};
     if ($o->($h)) {
       evOutRef(undef, $h);
     } elsif ($!{EAGAIN}) {
       evOutRef($o, $h);
     } else {
-      _reopen($h);
+      _hangup($h);
     }
     return;
   }
@@ -210,11 +216,7 @@ sub _event {
     }
   }
   if (!$res and !$!{EAGAIN}) {
-    if ($h->{hup}->($h) && !$h->{tryOnce}) {
-      _reopen($h);
-    } else {
-      evOff($h);
-    }
+    _hangup($h);
   } elsif ($o = $h->{outEv}) { # check outEv again, things might have shifted
     evOutRef($o, $h);
   }

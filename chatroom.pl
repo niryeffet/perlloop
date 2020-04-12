@@ -8,24 +8,18 @@ my $system = 'system';
 my %connected;
 my %byName;
 
-sub output {
-  my ($h, $msg) = @_;
-  # writing to a socket may fail, ignore
-  eval { print { $h->{out} || $h->{fh} } "$msg\n"; };
-}
-
 sub sysOut {
   my ($h, $msg) = @_;
-  output($h, "$system: $msg");
+  $h->say("$system: $msg");
 }
 
 sub welcome {
-  sysOut(shift, "please setup your name with /name command");
+  sysOut(shift, 'please setup your name with /name command');
 }
 
 sub tellAll {
   my ($msg, $ignore) = @_;
-  output($_, $msg) foreach grep { $_ != $ignore } values %connected;
+  $_->say($msg) foreach $ignore ? grep { $_ != $ignore } values %connected : values %connected;
 }
 
 my $evLine = evLine {
@@ -69,35 +63,35 @@ my $evLine = evLine {
         sysOut($h, join(', ', grep { $byName{$_}->{op} } keys %byName));
         return;
       } elsif (/^help$/) {
-        push @help, "  /shutdown, /quit - turn off chat"
+        push @help, '  /shutdown, /quit - turn off chat'
           if $h->{name} eq $system;
-        push @help, ("  /ban <name> - kick someone out",
-                     "  /op <name> - turn <name> into op",
-                     "  /ops - list ops",
-                     "  /deop <name> - remove <name> op flag");
+        push @help, ('  /ban <name> - kick someone out',
+                     '  /op <name> - turn <name> into op',
+                     '  /ops - list ops',
+                     '  /deop <name> - remove <name> op flag');
       }
     }
     if (/^help$/) {
-      push @help, ("  /bye - leave chat") if $h->{name} ne $system;
-      push @help, ("  /who - show who is in the room",
-                   "  /name <name> - set/change own name");
-      push @help, ("  /msg <name> ... - send private message",
-                   "  /who am i - show own name") if $h->{name};
-      output($h, "Available commands:");
-      output($h, $_) foreach sort @help;
+      push @help, ('  /bye - leave chat') if $h->{name} ne $system;
+      push @help, ('  /who - show who is in the room',
+                   '  /name <name> - set/change own name');
+      push @help, ('  /msg <name> ... - send private message',
+                   '  /who am i - show own name') if $h->{name};
+      $h->say('Available commands:');
+      $h->say($_) foreach sort @help;
     } elsif (/^msg +([^ ]*) +(.+)/ && $h->{name}) {
       if ($byName{$1}) {
-        output($byName{$1}, "$h->{name}(privately): $2");
+        $byName{$1}->say("$h->{name}(privately): $2");
       } else {
         sysOut($h, "couldn't msg $1");
       }
     } elsif (/^who +am +i/i && $h->{name}) {
-      output($h, "$h->{name}");
+      $h->say("$h->{name}");
     } elsif (/^who$/i) {
       sysOut($h, join(', ', keys %byName));
     } elsif (/^name +(.*)$/i) {
       if ($1 eq '' or $byName{$1}) {
-        sysOut($h, "unable to change name");
+        sysOut($h, 'unable to change name');
       } else {
         if ($h->{name}) {
           tellAll("$system: $h->{name} is now known as $1");

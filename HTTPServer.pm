@@ -26,15 +26,14 @@ sub httpResponse {
     }
   }
   $header .= "\r\n" if $header ne '' and !$header =~ /\r\n$/s;
-  my $fh = $h->{fh};
-  print $fh
+  $h->write(
     "HTTP/1.1 $status\r\n".
     "Server: HTTPInLoop\r\n".
     "Date: ${\strftime('%a, %d %b %Y %T GMT', gmtime())}\r\n".
     "Content-Type: $ctype\r\n".
     "Content-Length: ${\(length($data) * 1)}\r\n".
-    "Connection: keep-alive\r\n$header\r\n";
-  print $fh $data;
+    "Connection: keep-alive\r\n$header\r\n");
+  $h->write($data);
 }
 
 package HTTPServer;

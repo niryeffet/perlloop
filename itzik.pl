@@ -18,13 +18,12 @@ tcpServer(23456, '127.0.0.1', evOut {
 
 sub tellAll {
   my $msg = shift;
-  # writing to a socket may fail, ignore
-  eval { print { $_->{fh} } $msg } foreach values %connected;
+  $_->say($msg) foreach values %connected;
 }
 
 # test
 setInterval {
-  tellAll("Hello world\n");
+  tellAll("Hello world");
 } 1000;
 
 tcpClient(23456, '127.0.0.1', evLine { print; });
