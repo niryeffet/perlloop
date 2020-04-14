@@ -3,9 +3,10 @@ use strict;
 use lib '.';
 use InLoop;
 use TCPInLoop;
+use TellAll;
 
 my $system = 'system';
-my %connected;
+my $connected = TellAll->new();
 my %byName;
 
 sub sysOut {
@@ -17,11 +18,6 @@ sub welcome {
   sysOut(shift, 'please setup your name with /name command');
 }
 
-sub tellAll {
-  my ($msg, $ignore) = @_;
-  $_->say($msg) foreach $ignore ? grep { $_ != $ignore } values %connected : values %connected;
-}
-
 my $evLine = evLine {
   my $h = shift;
   s/\r//; chomp;
@@ -30,7 +26,7 @@ my $evLine = evLine {
     s/ *$//;
     if ($h->{op}) {
       if (/^nclients$/) {
-        my $size = keys %connected;
+        my $size = keys %$connected;
         sysOut($h, $size);
         return;
       } elsif (/^ban +(.+)/) {
@@ -94,12 +90,12 @@ my $evLine = evLine {
         sysOut($h, 'unable to change name');
       } else {
         if ($h->{name}) {
-          tellAll("$system: $h->{name} is now known as $1");
+          $connected->say("$system: $h->{name} is now known as $1");
           $system = $1 if $h->{name} eq $system;
           delete $byName{$h->{name}};
         } else {
-          $connected{$h->{fh}} = $h;
-          tellAll("$system: $1 is now connected");
+          $connected->add($h);
+          $connected->say("$system: $1 is now connected");
         }
         $byName{$h->{name} = $1} = $h;
       }
@@ -109,7 +105,7 @@ my $evLine = evLine {
       sysOut($h, "not sure what to do with '/$_'. try '/help'");
     }
   } elsif ($h->{name}) {
-    tellAll("$h->{name}: $_", $h) if $_ ne '';
+    $connected->say("$h->{name}: $_", $h) if $_ ne '';
   } else {
     welcome($h);
   }
@@ -120,9 +116,9 @@ tcpServer(23456, undef, ($evLine, evOut {
   1;
 } evHup {
   my $h = shift;
-  delete $connected{$h->{fh}};
+  $connected->remove($h);
   if ($h->{name}) {
-    tellAll("$system: $h->{name} diconnected");
+    $connected->say("$system: $h->{name} diconnected");
     delete $byName{$h->{name}};
   }
 }));
@@ -132,7 +128,7 @@ evOn {
   $h->{fh} = *STDIN;
   $h->{out} = *STDOUT;
   $h->{name} = $system;
-  $byName{$system} = $connected{$h->{fh}} = $h;
+  $connected->add($byName{$system} = $h);
   $h->{op} = 1;
   1;
 } $evLine;

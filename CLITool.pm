@@ -7,6 +7,7 @@ use InLoop;
 use Exporter 'import';
 our @EXPORT = qw(subCli);
 use constant HELPKEY => '(help|\?)( |$)';
+use constant PROMPT => '> ';
 
 my $ignore = [sub { 1; }];
 sub new {
@@ -107,7 +108,7 @@ sub processLine {
     chomp; s/\s*$//; s/^\s*//; s/\s+/ /g;
     my $success = $clis[0]->processCli($h, $methods);
     $h->say("Unknow command '$_'.") if !$success;
-    $h->write($prompts[0].'> ') if $success != 2;
+    $h->write($prompts[0].PROMPT) if $success != 2;
   };
 }
 
@@ -125,12 +126,14 @@ sub add {
 
 sub console {
   my $cli = shift;
+  my $connected = shift;
   $| = 1;
   evOn {
     my $h = shift;
     $_ = *STDIN;
     $h->{out} = *STDOUT;
-    print '> ';
+    $connected->add($h) if $connected;
+    print PROMPT;
     1;
   } evHup { # hup (ctrl-d)
     print "\n";

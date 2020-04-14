@@ -3,27 +3,16 @@ use strict;
 use lib '.';
 use InLoop;
 use TCPInLoop;
+use TellAll;
 
-my %connected;
+my $connected = TellAll->new();
 
-tcpServer(23456, '127.0.0.1', evOut {
-  my $h = shift;
-  $connected{$h->{fh}} = $h;
-  1;
-} evHup {
-  delete $connected{shift->{fh}};
-} evLine {
+tcpServer(23456, '127.0.0.1', evLine {
   print "Received unexpected: $_";
-});
+} $connected->evMethods);
 
-sub tellAll {
-  my $msg = shift;
-  $_->say($msg) foreach values %connected;
-}
-
-# test
 setInterval {
-  tellAll("Hello world");
+  $connected->say("Hello world");
 } 1000;
 
 tcpClient(23456, '127.0.0.1', evLine { print; });
