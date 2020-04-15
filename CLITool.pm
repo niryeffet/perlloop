@@ -73,11 +73,11 @@ sub subCli { # Exported
   };
 }
 
-sub processLine {
+sub newProcessor {
   my @clis = ( shift );
   my @prompts = ( '' );
   my (@cliAccum, @promptAccum);
-  my $methods = {
+  return {
     'accumulate' => sub {
        unshift @cliAccum, $_[0];
        unshift @promptAccum, ($promptAccum[0] || $prompts[0]).$_[1].' ';
@@ -99,16 +99,28 @@ sub processLine {
        $promptAccum[0] || $prompts[0];
     }, 'isAccum' => sub {
        @promptAccum || @prompts == 1;
+    }, 'initLine' => sub {
+       @cliAccum = ();
+       @promptAccum = ();
+    }, 'prompt0' => sub {
+       $prompts[0];
+    }, 'process' => sub {
+       $clis[0]->processCli(@_);
     },
   };
+}
+
+sub processLine {
+  my $clis = shift;
   return evLine {
-    @cliAccum = ();
-    @promptAccum = ();
     my $h = shift;
+    my $methods = $h->{CLIMethods};
+    $methods = $h->{CLIMethods} = newProcessor($clis) if !$methods;
+    $methods->{initLine}->();
     chomp; s/\s*$//; s/^\s*//; s/\s+/ /g;
-    my $success = $clis[0]->processCli($h, $methods);
+    my $success = $methods->{process}->($h, $methods);
     $h->say("Unknow command '$_'.") if !$success;
-    $h->write($prompts[0].PROMPT) if $success != 2;
+    $h->write($methods->{prompt0}->().PROMPT) if $success != 2;
   };
 }
 
