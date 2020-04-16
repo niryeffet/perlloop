@@ -6,6 +6,18 @@ sub evOff { InLoop::evOff(shift); }
 
 sub getOpenTime { $_[0]->{openTime}; }
 
+sub _evWriter {
+  my $h = shift;
+  my $dataOut = $h->{dataOut};
+  while (@$dataOut) {
+    syswrite($_, $dataOut->[0]);
+    return if $!;
+    shift @$dataOut;
+  }
+  delete $h->{dataOut};
+  1;
+}
+
 sub write {
   my ($h, $d) = @_;
   my $out = $h->{out};
@@ -16,17 +28,7 @@ sub write {
   if ($!) {
     if ($!{EAGAIN}) {
       $h->{dataOut} = [$d];
-      InLoop::evOutRef(sub {
-        my $h = shift;
-        my $dataOut = $h->{dataOut};
-        while (@$dataOut) {
-          syswrite($_, $dataOut->[0]);
-          return if $!;
-          shift @$dataOut;
-        }
-        delete $h->{dataOut};
-        1;
-      }, $h);
+      InLoop::evOutRef(\&_evWriter, $h);
     } else {
       InLoop::_hangup($h);
     }

@@ -107,8 +107,7 @@ sub evOnce (@) {
 
 sub evOff ($) {
   my $h = $_[0];
-  delete $h->{open};
-  delete $h->{outEv};
+  delete @$h{'open', 'outEv', 'dataOut'};
   kill 'TERM', $h->{child} if $h->{child};
   _del($h);
 }
@@ -125,9 +124,7 @@ sub _epollCtl {
 
 sub _del { # close, allow reopening
   my $h = $_[0];
-  delete $h->{child};
-  delete $h->{out};
-  my $fh = delete $h->{fh};
+  my $fh = delete @$h{'child', 'out', 'fh'};
   return 0 if !$fh;
   my $fn = fileno $fh;
   delete $fds[$fn];
