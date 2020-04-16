@@ -1,7 +1,7 @@
 # Event driven / asynchronous using Perl
 
 Using these tools one can easily
-* react to: IR, log lines (tail -f), external devices, ETC. events
+* react to: IR, log lines (tail -F), external devices, ETC. events
 * write CLI to control the program and devices
 * write REST API
 * route data to listeners and log files
