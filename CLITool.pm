@@ -124,6 +124,7 @@ sub processLine {
     $h->{CLIMethods} = newProcessor($cli);
     $h->write(PROMPT);
     $connected->add($h) if $connected;
+    1;
   } evHup {
     TellAll->removeAll(shift);
   };
