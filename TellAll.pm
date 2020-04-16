@@ -4,8 +4,10 @@ package TellAll;
 use lib '.';
 use InLoop;
 
+our @all;
+
 sub new {
-  bless {};
+  $all[@all] = bless {};
 }
 
 sub write {
@@ -30,6 +32,11 @@ sub remove {
   my ($this, $h) = @_;
   delete $this->{$h->{fh}};
   1;
+}
+
+sub removeAll {
+  my ($this, $h) = @_;
+  $_->remove($h) foreach @all;
 }
 
 sub evMethods {

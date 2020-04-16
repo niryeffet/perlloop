@@ -3,6 +3,7 @@ use strict;
 package CLITool;
 use lib '.';
 use InLoop;
+use TellAll;
 
 use Exporter 'import';
 our @EXPORT = qw(subCli);
@@ -10,6 +11,7 @@ use constant HELPKEY => '(help|\?)( |$)';
 use constant PROMPT => '> ';
 
 my $ignore = [sub { 1; }];
+
 sub new {
   my $cli = addHelp({ # bless
     '(exit|quit)$' => [sub {
@@ -77,7 +79,8 @@ sub newProcessor {
   my @clis = ( shift );
   my @prompts = ( '' );
   my (@cliAccum, @promptAccum);
-  return {
+  my $methods;
+  $methods = {
     'accumulate' => sub {
        unshift @cliAccum, $_[0];
        unshift @promptAccum, ($promptAccum[0] || $prompts[0]).$_[1].' ';
@@ -99,28 +102,30 @@ sub newProcessor {
        $promptAccum[0] || $prompts[0];
     }, 'isAccum' => sub {
        @promptAccum || @prompts == 1;
-    }, 'initLine' => sub {
+    }, 'process' => sub {
+       my $h = shift;
        @cliAccum = ();
        @promptAccum = ();
-    }, 'prompt0' => sub {
-       $prompts[0];
-    }, 'process' => sub {
-       $clis[0]->processCli(@_);
+       chomp; s/\s*$//; s/^\s*//; s/\s+/ /g;
+       my $success = $clis[0]->processCli($h, $methods);
+       $h->say("Unknow command '$_'.") if !$success;
+       $h->write($prompts[0].PROMPT) if $success != 2;
     },
   };
 }
 
 sub processLine {
-  my $clis = shift;
+  my ($cli, $connected) = @_;
   return evLine {
     my $h = shift;
-    my $methods = $h->{CLIMethods};
-    $methods = $h->{CLIMethods} = newProcessor($clis) if !$methods;
-    $methods->{initLine}->();
-    chomp; s/\s*$//; s/^\s*//; s/\s+/ /g;
-    my $success = $methods->{process}->($h, $methods);
-    $h->say("Unknow command '$_'.") if !$success;
-    $h->write($methods->{prompt0}->().PROMPT) if $success != 2;
+    $h->{CLIMethods}->{process}->($h);
+  } evOut {
+    my $h = shift;
+    $h->{CLIMethods} = newProcessor($cli);
+    $h->write(PROMPT);
+    $connected->add($h) if $connected;
+  } evHup {
+    TellAll->removeAll(shift);
   };
 }
 
@@ -137,21 +142,18 @@ sub add {
 }
 
 sub console {
-  my $cli = shift;
-  my $connected = shift;
+  my ($cli, $connected) = @_;
   $| = 1;
   evOn {
     my $h = shift;
     $_ = *STDIN;
     $h->{out} = *STDOUT;
-    $connected->add($h) if $connected;
-    print PROMPT;
     1;
-  } evHup { # hup (ctrl-d)
+  } evHup { # Override evHup from processLine
     print "\n";
     exitInLoop();
     0;
-  } $cli->processLine;
+  } $cli->processLine($connected);
 }
 
 1;
