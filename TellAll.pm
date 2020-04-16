@@ -18,8 +18,7 @@ sub write {
 
 sub say {
   my ($this, $msg, $ignore) = @_;
-  $_->say($msg) foreach $ignore ?
-    grep { $_ != $ignore } values %$this : values %$this;
+  $this->write("$msg\n", $ignore);
 }
 
 sub add {

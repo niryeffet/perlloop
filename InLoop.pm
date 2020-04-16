@@ -15,6 +15,7 @@ our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
 
 use constant REOPEN => 1000; # reopen attempt after n ms
 my @fds;
+my $fds = 0;
 
 #ignore some signals, event will rise
 $SIG{HUP} = $SIG{PIPE} = $SIG{CHLD} = 'IGNORE';
@@ -127,7 +128,8 @@ sub _del { # close, allow reopening
   my $fh = delete @$h{'child', 'out', 'fh'};
   return 0 if !$fh;
   my $fn = fileno $fh;
-  delete $fds[$fn];
+  $fds[$fn] = undef;
+  --$fds;
   if ($fn > 2) {
     close($fh);
   } else {
@@ -170,6 +172,7 @@ sub _add {
   $fh->autoflush;
   my $fn = fileno $fh;
   $fds[$fn] = $h;
+  ++$fds;
   _epollCtl(EPOLL_CTL_ADD, $h);
 }
 
@@ -227,7 +230,7 @@ END {
 # most simple event loop
 END {
   my @evs;
-  epoll_wait(1, -1, \@evs) == 1 && _event(shift @evs) while (@fds);
+  epoll_wait(1, -1, \@evs) == 1 && _event(shift @evs) while ($fds);
 }
 
 1;
