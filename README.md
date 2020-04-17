@@ -6,6 +6,7 @@ Using these tools one can easily:
 * write simple RESTful API
 * route data to listeners and log files
 * not worry about disconnects (it will auto-reconnect)
+
 Also benefits from:
 * asynchronous writes (auto-buffering and event based writing)
 * setTimeout and setInterval (javascript style)
