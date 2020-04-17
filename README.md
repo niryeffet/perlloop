@@ -18,7 +18,7 @@ Linux. On Ubuntu, install liblinux-fd-perl:
 
 ## Why Perl? The default variable.
 
-Also, it was initially written long time ago (before epoll), when perl was still popular...
+Also, it was initially written long time ago (before epoll), when perl was still popular.
 
 The default input and pattern-searching variable ($_) makes it super easy to write code and focus only on the application logic, with zero boiler-plate code. Example: easily mapping Panasonic TV remote to control audio even when the TV if off.
 
@@ -34,7 +34,7 @@ my ($cecNum, $cecActive, $tv);
 
 my $cec = evOn {
   my $h = shift;
-  open2($h->{fh}, $h->{'out'}, 'cec-client -r -t p');
+  open2($h->{fh}, $h->{out}, 'cec-client -r -t p');
 } evLine {
   if (/TV/ && /power status changed/) {
     if (/to 'standby'/) {
@@ -42,7 +42,7 @@ my $cec = evOn {
     } elsif (/to 'on'/) {
       $tv = 'on';
     }
-  } elsif (/\((.*?)\): vendor = Pulse Eight/) {
+  } elsif (/\((.)\): vendor = Pulse Eight/) {
     $cecNum = $1;
   } elsif (/>> (.)f:82:/) {
     $cecActive = $1;
