@@ -1,6 +1,7 @@
 use strict;
 
 package InLoop::methods;
+use Errno qw(EAGAIN);
 
 sub evOff { InLoop::evOff(shift); }
 
@@ -10,7 +11,12 @@ sub _evWriter {
   my $h = shift;
   my $dataOut = $h->{dataOut};
   while (@$dataOut) {
-    syswrite($_, $dataOut->[0]);
+    my $d = $dataOut->[0];
+    my $l = syswrite($_, $d);
+    if ($l && $l < length($d)) {
+      $dataOut->[0] = substr($d, $l);
+      $! = EAGAIN;
+    }
     return if $!;
     shift @$dataOut;
   }
@@ -24,7 +30,11 @@ sub write {
   return if !$out;
   my $dataOut = $h->{dataOut};
   return push(@$dataOut, $d) if $dataOut;
-  syswrite($out, $d);
+  my $l = syswrite($out, $d);
+  if ($l && $l < length($d)) {
+    $d = substr($d, $l);
+    $! = EAGAIN;
+  }
   if ($!) {
     if ($!{EAGAIN}) {
       $h->{dataOut} = [$d];
