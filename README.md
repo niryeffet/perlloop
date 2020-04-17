@@ -1,11 +1,14 @@
-# Event driven / asynchronous using Perl
+# Event driven / asynchronous I/O using Perl
 
-Using these tools one can easily
+Using these tools one can easily:
 * react to: IR, log lines (tail -F), external devices, ETC. events
 * write CLI to control the program and devices
 * write simple RESTful API
 * route data to listeners and log files
 * not worry about disconnects (it will auto-reconnect)
+Also benefits from:
+* asynchronous writes (auto-buffering and event based writing)
+* setTimeout and setInterval (javascript style)
 
 ### Requirements:
 Linux. On Ubuntu, install liblinux-fd-perl:
