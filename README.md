@@ -20,29 +20,14 @@ The default input and pattern-searching variable ($_) makes it super easy to wri
 
 ```
 use strict;
+use Socket;
+use IPC::Open2;
+use lib '.';
 use InLoop;
 
 my $lircd = '/var/run/lirc/lircd';
-evOn {                                        # $_ is the filehandler
-  socket($_, PF_UNIX, SOCK_STREAM, 0);
-  connect(nonblock($_), sockaddr_un($lircd));
-} evLine {                                    # $_ is the line input
-  if (/Panasonic_TC-21E1R/ && $tv eq 'off') { # $tv state is set elsewhere
-    if (/ (..) \+ / && (hex($1) % 3 == 0)) {
-      cecOut('tx '.$cecNum.'5:44:41');
-    } elsif (/ (..) - / && (hex($1) % 3 == 0)) {
-      cecOut('tx '.$cecNum.'5:44:42');
-    } elsif (/ 00 pause /) {
-      cecOut('tx '.$cecNum.$cecActive.':44:46');
-    } elsif (/ 00 track_up /) {
-      cecOut('tx '.$cecNum.$cecActive.':44:4b');
-    } elsif (/ 00 track_down /) {
-      cecOut('tx '.$cecNum.$cecActive.':44:4c');
-    }
-  }
-};
-
 my ($cecNum, $cecActive, $tv);
+
 my $cec = evOn {
   my $h = shift;
   open2($h->{fh}, $h->{'out'}, 'cec-client -r -t p');
@@ -60,10 +45,24 @@ my $cec = evOn {
   }
 };
 
-sub cecOut {
-  my $data = shift;
-  $cec->say($data);
-}
+evOn {                                        # $_ is the filehandler
+  socket($_, PF_UNIX, SOCK_STREAM, 0);
+  connect(nonblock($_), sockaddr_un($lircd));
+} evLine {                                    # $_ is the line input
+  if (/Panasonic_TC-21E1R/ && $tv eq 'off') {
+    if (/ (..) \+ / && (hex($1) % 3 == 0)) {
+      $cec->say('tx '.$cecNum.'5:44:41');
+    } elsif (/ (..) - / && (hex($1) % 3 == 0)) {
+      $cec->say('tx '.$cecNum.'5:44:42');
+    } elsif (/ 00 pause /) {
+      $cec->say('tx '.$cecNum.$cecActive.':44:46');
+    } elsif (/ 00 track_up /) {
+      $cec->say('tx '.$cecNum.$cecActive.':44:4b');
+    } elsif (/ 00 track_down /) {
+      $cec->say('tx '.$cecNum.$cecActive.':44:4c');
+    }
+  }
+};
 
 1;
 ```
