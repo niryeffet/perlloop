@@ -17,8 +17,8 @@ sub writeRef {
 }
 
 sub write {
-  $_[1] = \$_[1];
-  goto &writeRef;
+  my ($this, $msg, $ignore) = @_;
+  $this->writeRef(\$msg, $ignore);
 }
 
 sub say {

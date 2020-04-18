@@ -46,8 +46,8 @@ sub writeRef {
 }
 
 sub write {
-  $_[1] = \$_[1];
-  goto &writeRef;
+  my ($h, $d) = @_;
+  writeRef($h, \$d);
 }
 
 sub say {
