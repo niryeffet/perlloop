@@ -12,9 +12,9 @@ sub _evWriter {
   my $dataOut = $h->{dataOut};
   while (@$dataOut) {
     my $d = $dataOut->[0];
-    my $l = syswrite($_, $d);
-    if ($l && $l < length($d)) {
-      $dataOut->[0] = substr($d, $l);
+    my $l = syswrite($_, $$d);
+    if ($l && $l < length($$d)) {
+      $dataOut->[0] = \substr($$d, $l);
       $! = EAGAIN;
     }
     return if $!;
@@ -24,15 +24,15 @@ sub _evWriter {
   1;
 }
 
-sub write {
+sub writeRef {
   my ($h, $d) = @_;
   my $out = $h->{out};
   return if !$out;
   my $dataOut = $h->{dataOut};
   return push(@$dataOut, $d) if $dataOut;
-  my $l = syswrite($out, $d);
-  if ($l && $l < length($d)) {
-    $d = substr($d, $l);
+  my $l = syswrite($out, $$d);
+  if ($l && $l < length($$d)) {
+    $d = \substr($$d, $l);
     $! = EAGAIN;
   }
   if ($!) {
@@ -45,9 +45,14 @@ sub write {
   }
 }
 
+sub write {
+  $_[1] = \$_[1];
+  goto &writeRef;
+}
+
 sub say {
   my ($h, $d) = @_;
-  InLoop::methods::write($h, "$d\n");
+  InLoop::methods::writeRef($h, \"$d\n");
 }
 
 1;

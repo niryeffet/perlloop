@@ -10,15 +10,20 @@ sub new {
   $all[@all] = bless {};
 }
 
-sub write {
+sub writeRef {
   my ($this, $msg, $ignore) = @_;
-  $_->write($msg) foreach $ignore ?
+  $_->writeRef($msg) foreach $ignore ?
     grep { $_ != $ignore } values %$this : values %$this;
+}
+
+sub write {
+  $_[1] = \$_[1];
+  goto &writeRef;
 }
 
 sub say {
   my ($this, $msg, $ignore) = @_;
-  $this->write("$msg\n", $ignore);
+  $this->writeRef(\"$msg\n", $ignore);
 }
 
 sub add {
