@@ -32,6 +32,11 @@ sub add {
   1;
 }
 
+sub is {
+  my ($this, $h) = @_;
+  exists $this->{$h->{fh}};
+}
+
 sub remove {
   my ($this, $h) = @_;
   delete $this->{$h->{fh}};
