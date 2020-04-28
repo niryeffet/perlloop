@@ -193,14 +193,14 @@ sub _add {
   my $child;
   undef $_;
   ($child = $s->($h)) or $!{EINPROGRESS} or return &_schedAdd;
-  $h->{fh} = $_ if $_ and !$h->{fh};
+  $h->{fh} = $_ if !$h->{fh};
   $h->{child} = $child if $child > 1; # pid of subprocess
   $fds[fileno nonblock($h->{fh})] = $h;
   ++$fds;
   if ($h->{out}) {
     $fds[fileno nonblock($h->{out})] = $h;
   } else {
-    $h->{out} = $fh;
+    $h->{out} = $h->{fh};
   }
   _epollCtl(EPOLL_CTL_ADD, $h);
 }
