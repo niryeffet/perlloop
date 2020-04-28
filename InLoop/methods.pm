@@ -2,14 +2,19 @@ use strict;
 
 package InLoop::methods;
 use Errno qw(EAGAIN);
+use Data::Dumper;
 
-sub evOff { InLoop::evOff(shift); }
+sub evOff {
+  my $h = shift;
+  return InLoop::evOff($h) unless $h->{dataOut};
+  $h->{off} = 1;
+}
 
 sub getOpenTime { $_[0]->{openTime}; }
 
 sub _evWriter {
   my $h = shift;
-  my $dataOut = $h->{dataOut};
+  my $dataOut = $h->{dataOut} || [];
   while (@$dataOut) {
     my $d = $dataOut->[0];
     my $l = syswrite($_, $$d);
@@ -21,15 +26,19 @@ sub _evWriter {
     shift @$dataOut;
   }
   delete $h->{dataOut};
+  InLoop::evOff($h) if $h->{off};
   1;
 }
 
 sub writeRef {
   my ($h, $d) = @_;
-  my $out = $h->{out};
-  return if !$out;
   my $dataOut = $h->{dataOut};
   return push(@$dataOut, $d) if $dataOut;
+  my $out = $h->{out};
+  if (!$out) {
+    $h->{outEv} = \&_evWriter;
+    return $h->{dataOut} = [$d];
+  }
   my $l = syswrite($out, $$d);
   if ($l && $l < length($$d)) {
     $d = \substr($$d, $l);
@@ -52,7 +61,7 @@ sub write {
 
 sub say {
   my ($h, $d) = @_;
-  InLoop::methods::writeRef($h, \"$d\n");
+  writeRef($h, \"$d\n");
 }
 
 1;

@@ -14,7 +14,7 @@ our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
                  evOn evLine evHup evIn evOut evOnce evOpen);
 
 use constant REOPEN => 1000; # reopen attempt after n ms
-my @fds;
+my (@fds, @evs);
 my $fds = 0;
 
 #ignore some signals, event will rise
@@ -30,7 +30,7 @@ sub _createTimer {
     $_ = Linux::FD::Timer->new('monotonic') or return 0;
     $_->set_timeout($value, $interval);
     1;
-  }, evLineRef($func));
+  }, evInRef($func));
 }
 
 sub setTimeout (&$) {
@@ -44,7 +44,10 @@ sub setTimeout (&$) {
 sub setInterval (&$) {
   my ($func, $ms) = @_;
   my $secs = $ms / 1000;
-  _createTimer($secs, $secs, $func);
+  _createTimer($secs, $secs, sub {
+    sysread($_, $a, 4096);
+    &$func;
+  });
 }
 
 sub _agEv {
@@ -108,7 +111,7 @@ sub evOnce (@) {
 
 sub evOff ($) {
   my $h = $_[0];
-  delete @$h{'open', 'outEv', 'dataOut'};
+  delete @$h{'open', 'outEv', 'dataOut', 'off'};
   kill 'TERM', $h->{child} if $h->{child};
   _del($h);
 }
@@ -118,24 +121,49 @@ sub exitInLoop {
   0;
 }
 
+sub _epoll_ctl {
+  my ($op, $fn, $ev) = @_;
+  # true when failed. Assume file, no epoll.
+  epoll_ctl($op, $fn, $ev) && push @evs, [$fn, $op];
+}
+
 sub _epollCtl {
   my ($op, $h) = @_;
-  epoll_ctl($op, fileno $h->{fh}, $h->{outEv} ? EPOLLIN | EPOLLOUT | EPOLLONESHOT : EPOLLIN);
+  my $nfh = fileno $h->{fh};
+  my $nout = fileno $h->{out};
+  if ($nfh == $nout) {
+    _epoll_ctl($op, $nfh, $h->{outEv} ? EPOLLIN | EPOLLOUT | EPOLLONESHOT : EPOLLIN);
+  } elsif ($h->{outEv} || $op != EPOLL_CTL_MOD) {
+    _epoll_ctl($op, $nfh, EPOLLIN) if $op != EPOLL_CTL_MOD;
+    _epoll_ctl($op, $nout, $h->{outEv} ? EPOLLOUT | EPOLLONESHOT : 0);
+  }
 }
 
 sub _del { # close, allow reopening
   my $h = $_[0];
-  my $fh = delete @$h{'child', 'out', 'fh'};
-  return 0 if !$fh;
-  my $fn = fileno $fh;
-  $fds[$fn] = undef;
-  --$fds;
-  if ($fn > 2) {
+  my $fh = delete @$h{'fh'};
+  return if !$fh;
+  my $out = delete @$h{'child', 'out'};
+  my ($nFh, $nOut) = (fileno $fh, fileno $out);
+  if ($nOut != $nFh) {
+    $fds[$nOut] = undef;
+    if ($nOut > 2) {
+      close($out);
+    } else {
+      # never close stdin stdout stderr
+      epoll_ctl(EPOLL_CTL_DEL, $nOut);
+      doBlock($out)
+    }
+  }
+  if ($nFh > 2) {
     close($fh);
   } else {
     # never close stdin stdout stderr
-    epoll_ctl(EPOLL_CTL_DEL, $fn);
+    epoll_ctl(EPOLL_CTL_DEL, $nFh);
+    doBlock($fh)
   }
+  $fds[$nFh] = undef;
+  --$fds;
 }
 
 sub _schedAdd {
@@ -166,13 +194,14 @@ sub _add {
   undef $_;
   ($child = $s->($h)) or $!{EINPROGRESS} or return &_schedAdd;
   $h->{fh} = $_ if $_ and !$h->{fh};
-  $h->{out} = $h->{fh} if !$h->{out};
   $h->{child} = $child if $child > 1; # pid of subprocess
-  my $fh = nonblock($h->{fh});
-  $fh->autoflush;
-  my $fn = fileno $fh;
-  $fds[$fn] = $h;
+  $fds[fileno nonblock($h->{fh})] = $h;
   ++$fds;
+  if ($h->{out}) {
+    $fds[fileno nonblock($h->{out})] = $h;
+  } else {
+    $h->{out} = $fh;
+  }
   _epollCtl(EPOLL_CTL_ADD, $h);
 }
 
@@ -187,11 +216,13 @@ sub _hangup {
 }
 
 sub _event {
-  my ($fn, $epev) = @{$_[0]};
+  my ($fn, $epev) = @{shift @evs};
   my $h = $fds[$fn];
+  if ($epev & EPOLLERR) {
+    return _hangup($h);
+  }
   my $o = $h->{outEv};
-  # err and hup are ignored - err are rare, and will fail also on read, hup anyway may have data to consume.
-  if ($epev & EPOLLOUT) {
+  if (($epev & EPOLLOUT) && !($epev & EPOLLHUP) && $o) {
     $_ = $h->{out};
     if ($o->($h)) {
       evOutRef(undef, $h);
@@ -210,27 +241,28 @@ sub _event {
   } else {
     my $fh = $h->{fh};
     my $fn = fileno $fh;
-    while (<$fh>) {
-      $e->($h);
-      return if !$fds[$fn]; # $h was deleted via evOff! bail.
+    my $i;
+    my $d = \$h->{dataIn};
+    while (sysread($fh, $$d, 4096, length($$d) + 0)) {
+      while($i = index($$d, "\n") + 1) {
+        $_ = substr($$d, 0, $i, '');
+        $e->($h);
+        return if !$fds[$fn]; # $h was deleted via evOff! bail.
+      }
     }
   }
+
   if (!$res and !$!{EAGAIN}) {
+    $e->($h) if ($_ = $h->{dataIn}) ne '';
     _hangup($h);
   } elsif ($o = $h->{outEv}) { # check outEv again, things might have shifted
     evOutRef($o, $h);
   }
 }
 
-# attempt to correct STDIN before exit
-END {
-  doBlock(*STDIN);
-}
-
 # most simple event loop
 END {
-  my @evs;
-  epoll_wait(1, -1, \@evs) == 1 && _event(shift @evs) while ($fds);
+  (@evs || epoll_wait(1, -1, \@evs) == 1) && _event() while ($fds);
 }
 
 1;
