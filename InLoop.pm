@@ -250,10 +250,13 @@ sub _event {
         return if !$fds[$fn]; # $h was deleted via evOff! bail.
       }
     }
+    if (($_ = $h->{dataIn}) ne '') {
+      my $err = $!;
+      $e->($h);
+      $! = $err;
+    }
   }
-
   if (!$res and !$!{EAGAIN}) {
-    $e->($h) if ($_ = $h->{dataIn}) ne '';
     _hangup($h);
   } elsif ($o = $h->{outEv}) { # check outEv again, things might have shifted
     evOutRef($o, $h);
