@@ -33,12 +33,11 @@ sub new {
 
 sub processCli {
   my $cli = shift;
-  my %cli = %{$cli};
   my $cc = $_;
   my $success;
-  foreach my $cmd (keys %cli) {
+  foreach my $cmd (keys %$cli) {
     $_ = $cc;
-    last if s/^$cmd// && ($success = $cli{$cmd}->[0]->(@_));
+    last if s/^$cmd// && ($success = $cli->{$cmd}->[0]->(@_));
   }
   $_ = $cc;
   $success;
