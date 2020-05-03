@@ -39,7 +39,6 @@ sub httpResponse {
 package HTTPServer;
 use lib '.';
 use TCPInLoop;
-use InLoop;
 use JSON::PP;
 
 use Exporter 'import';

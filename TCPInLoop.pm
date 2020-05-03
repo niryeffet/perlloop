@@ -6,7 +6,7 @@ use lib '.';
 use InLoop;
 
 use Exporter 'import';
-our @EXPORT = qw(tcpServer tcpClient);
+our @EXPORT = qw(tcpServer tcpClient evLine evHup evIn evOut);
 
 sub tcpClient {
   my $port = shift;
