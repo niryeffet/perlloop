@@ -11,7 +11,7 @@ use InLoop::methods;
 
 use Exporter 'import';
 our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
-                 evOn evLine evHup evIn evOut evOnce evOpen);
+                 evOn evLine evHup evIn evOut evOnce);
 
 use constant REOPEN => 1000; # reopen attempt after n ms
 my (@fds, @evs);
