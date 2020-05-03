@@ -46,7 +46,7 @@ sub processCli {
 sub addHelp {
   my $cli = bless shift;
   my $cmd = $_[0] ? "$_[0] " : '';
-  $cli->{&HELPKEY} = [sub {
+  $cli->{&HELPKEY} ||= [sub {
     my $h = $_[0];
     if (/^$/ or /^\?/ ) {
       $h->say($_[1]->{prompt}->()."usage:");
@@ -58,10 +58,10 @@ sub addHelp {
       $h->say("No help for '$cmd'") if !$cli->processCli(@_);
     }
     1;
-  }, 'help, ? - show help'] if !$cli->{&HELPKEY};
-  $cli->{'$'} = [sub { $_[1]->{set}->(); } ] if !$cli->{'$'};
-  $cli->{'\.\.$'} = [sub { $_[1]->{leave}->(); }] if !$cli->{'\.\.$'};
-  $cli->{'\.\.\.$'} = [sub { $_[1]->{top}->(); }] if !$cli->{'\.\.\.$'};
+  }, 'help, ? - show help'];
+  $cli->{'$'} ||= [sub { $_[1]->{set}->(); } ];
+  $cli->{'\.\.$'} ||= [sub { $_[1]->{leave}->(); }];
+  $cli->{'\.\.\.$'} ||= [sub { $_[1]->{top}->(); }];
   $cli;
 }
 
