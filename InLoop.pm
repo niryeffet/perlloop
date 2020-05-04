@@ -251,6 +251,7 @@ sub _event {
       }
     }
     if (($_ = $h->{dataIn}) ne '') {
+      $h->{dataIn} = '';
       my $err = $!;
       $e->($h);
       $! = $err;
