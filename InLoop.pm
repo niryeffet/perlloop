@@ -11,9 +11,14 @@ use InLoop::methods;
 
 use Exporter 'import';
 our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
-                 evOn evLine evHup evIn evOut evOnce);
+                 evOn evLine evHup evIn evOut evOnce evLineOnly);
 
-use constant REOPEN => 1000; # reopen attempt after n ms
+use constant {
+ REOPEN => 1000, # reopen attempt after n ms
+ SUBOK => sub { 1; },
+ SUBNOP => sub { }
+};
+
 my (@fds, @evs);
 my $fds = 0;
 
@@ -61,8 +66,8 @@ sub evOnRef {
   my $h = _agEv({}, @_); # always new obj
   bless $h, "InLoop::methods";
   $h->{open} = $open;
-  $h->{hup} = sub { 1; } if !$h->{hup};
-  $h->{inEv} = sub { } if !$h->{inEv};
+  $h->{hup} ||= SUBOK;
+  $h->{inEv} ||= SUBNOP;
   _add($h);
   $h;
 }
@@ -106,6 +111,11 @@ sub evIn (&;@) { goto &evInRef; }
 sub evOnce (@) {
   my $h = &_agEv;
   $h->{tryOnce} = 1;
+  $h;
+}
+sub evLineOnly (@) {
+  my $h = &_agEv;
+  $h->{lineOnly} = 1;
   $h;
 }
 
@@ -193,7 +203,7 @@ sub _add {
   my $child;
   undef $_;
   ($child = $s->($h)) or $!{EINPROGRESS} or return &_schedAdd;
-  $h->{fh} = $_ if !$h->{fh};
+  $h->{fh} ||= $_;
   $h->{child} = $child if $child > 1; # pid of subprocess
   $fds[fileno nonblock($h->{fh})] = $h;
   ++$fds;
@@ -250,7 +260,7 @@ sub _event {
         return if !$fds[$fn]; # $h was deleted via evOff! bail.
       }
     }
-    if (($_ = $h->{dataIn}) ne '') {
+    if (!$h->{lineOnly} && ($_ = $h->{dataIn}) ne '') {
       $h->{dataIn} = '';
       my $err = $!;
       $e->($h);
