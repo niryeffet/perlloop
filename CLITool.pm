@@ -7,10 +7,11 @@ use TellAll;
 
 use Exporter 'import';
 our @EXPORT = qw(subCli);
-use constant HELPKEY => '(help|\?)( |$)';
-use constant PROMPT => '> ';
-
-my $ignore = [sub { 1; }];
+use constant {
+  HELPKEY => '(help|\?)( |$)',
+  PROMPT => '> ',
+  IGNORE => [ sub { 1; } ],
+};
 
 sub new {
   my $cli = addHelp({ # bless
@@ -23,10 +24,10 @@ sub new {
       exitInLoop;
       exec($^X, $0, @ARGV);
     }, 'restart - re-exec self'],
-    'echo( |$)' => [sub { CORE::say; }], # undocumented echo command, not sure what for
-    '$' => $ignore,
-    '\.\.$' => $ignore,
-    '\.\.\.$' => $ignore,
+    'echo( |$)' => [sub { shift->say($_); 1; }], # undocumented echo command
+    '$' => IGNORE,
+    '\.\.$' => IGNORE,
+    '\.\.\.$' => IGNORE,
   });
   $cli->add($_[1]);
 }
