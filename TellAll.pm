@@ -2,7 +2,6 @@ use strict;
 
 package TellAll;
 use lib '.';
-use InLoop;
 
 our @all;
 
@@ -12,8 +11,13 @@ sub new {
 
 sub writeRef {
   my ($this, $msg, $ignore) = @_;
-  $_->writeRef($msg) foreach $ignore ?
-    grep { $_ != $ignore } values %$this : values %$this;
+  if ($ignore) {
+    foreach (values %$this) {
+      $_->writeRef($msg) if $_ != $ignore;
+    }
+  } else {
+    $_->writeRef($msg) foreach values %$this;
+  }
 }
 
 sub write {
@@ -48,13 +52,4 @@ sub removeAll {
   $_->remove($h) foreach @all;
 }
 
-sub evMethods {
-  my $this = shift;
-  return evOut {
-    $this->add(shift);
-  } evHup {
-    $this->remove(shift);
-  } @_;
-}
- 
 1;
