@@ -31,9 +31,9 @@ sub httpResponse {
     "Server: HTTPInLoop\r\n".
     "Date: ${\strftime('%a, %d %b %Y %T GMT', gmtime())}\r\n".
     "Content-Type: $ctype\r\n".
-    "Content-Length: ${\(length($data) * 1)}\r\n".
+    "Content-Length: ${\(length($data) + 0)}\r\n".
     "Connection: keep-alive\r\n$header\r\n");
-  $h->write($data);
+  $h->writeRef(\$data);
 }
 
 package HTTPServer;
