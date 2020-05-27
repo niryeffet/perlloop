@@ -145,7 +145,7 @@ sub add {
 sub console {
   my ($cli, $connected) = @_;
   $| = 1;
-  evOn {
+  my $console = evOn {
     my $h = shift;
     $_ = *STDIN;
     $h->{out} = *STDOUT;
@@ -154,7 +154,8 @@ sub console {
     print "\n";
     exitInLoop();
     0;
-  } $cli->processLine($connected);
+  } $cli->processLine();
+  $connected->add($console) if $connected;
 }
 
 1;
