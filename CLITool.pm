@@ -10,7 +10,6 @@ our @EXPORT = qw(subCli);
 use constant {
   HELPKEY => '(help|\?)( |$)',
   PROMPT => '> ',
-  IGNORE => [ sub { 1; } ],
 };
 
 sub new {
@@ -25,9 +24,6 @@ sub new {
       exec($^X, $0, @ARGV);
     }, 'restart - re-exec self'],
     'echo( |$)' => [sub { shift->say($_); 1; }], # undocumented echo command
-    '$' => IGNORE,
-    '\.\.$' => IGNORE,
-    '\.\.\.$' => IGNORE,
   });
   $cli->add($_[1]);
 }
@@ -89,12 +85,10 @@ sub newProcessor {
        unshift @prompts, @promptAccum;
        1;
     }, 'leave' => sub {
-       return 0 if @promptAccum || @prompts == 1;
-       shift @clis;
-       shift @prompts;
+       shift @clis if (@clis > 1);
+       shift @prompts if (@prompts > 1);
        1;
     }, 'top' => sub {
-       return 0 if @promptAccum || @prompts == 1;
        shift @clis while (@clis > 1);
        shift @prompts while (@prompts > 1);
        1;
@@ -145,17 +139,17 @@ sub add {
 sub console {
   my ($cli, $connected) = @_;
   $| = 1;
-  my $console = evOn {
+  evOn {
     my $h = shift;
     $_ = *STDIN;
     $h->{out} = *STDOUT;
+    $connected->add($h) if $connected;
     1;
   } evHup { # Override evHup from processLine
     print "\n";
     exitInLoop();
     0;
   } $cli->processLine();
-  $connected->add($console) if $connected;
 }
 
 1;

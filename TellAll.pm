@@ -1,7 +1,6 @@
 use strict;
 
 package TellAll;
-use lib '.';
 
 our @all;
 
