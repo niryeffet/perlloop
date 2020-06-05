@@ -11,7 +11,7 @@ use InLoop::methods;
 
 use Exporter 'import';
 our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
-                 evOn evLine evHup evIn evOut evOnce evLineOnly);
+                 evOn evLine evHup evIn evOut evOnce evLineOnly evEmpty);
 
 use constant {
  REOPEN => 1000, # reopen attempt after n ms
@@ -70,6 +70,10 @@ sub evOnRef {
   $h->{inEv} ||= SUBNOP;
   _add($h);
   $h;
+}
+
+sub evEmpty {
+  bless {}, "InLoop::methods";
 }
 
 sub evLineRef {
