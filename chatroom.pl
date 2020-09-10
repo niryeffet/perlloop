@@ -131,6 +131,9 @@ evOn {
   $connected->add($byName{$system} = $h);
   $h->{op} = 1;
   1;
+} evOut {
+  shift->say('chatroom console. try "/help"');
+  1;
 } $evLine;
 
 1;

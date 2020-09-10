@@ -7,12 +7,13 @@ use InLoop;
 
 use Exporter 'import';
 our @EXPORT = qw(tcpServer tcpClient evLine evHup evIn evOut);
+use constant IPPROTO_TCP => (getprotobyname('tcp'))[2];
 
 sub tcpClient {
   my $port = shift;
   my $address = shift;
   evOn {
-    socket($_, PF_INET, SOCK_STREAM, (getprotobyname('tcp'))[2]);
+    socket($_, PF_INET, SOCK_STREAM, IPPROTO_TCP) or return 0;
     connect(nonblock($_), sockaddr_in($port, inet_aton($address)));
   } @_;
 }
@@ -24,7 +25,7 @@ sub tcpServer {
 
   evOn {
     my $h = shift;
-    socket($_, PF_INET, SOCK_STREAM, (getprotobyname('tcp'))[2]) or return 0;
+    socket($_, PF_INET, SOCK_STREAM, IPPROTO_TCP) or return 0;
     setsockopt($_, SOL_SOCKET, SO_REUSEADDR, 1) and
     bind($_, pack_sockaddr_in($port, inet_aton($address))) and
     ($h->{port} = $port || (sockaddr_in(getsockname($_)))[0]) and
