@@ -68,7 +68,7 @@ sub evOnRef {
   $h->{open} = $open;
   $h->{hup} ||= SUBOK;
   $h->{inEv} ||= SUBNOP;
-  _add($h);
+  _add($h, time());
   $h;
 }
 
@@ -137,7 +137,7 @@ sub exitInLoop {
 
 sub _epoll_ctl {
   my ($op, $fn, $ev) = @_;
-  # true when failed. Assume file, no epoll.
+  # true when failed. Assume file - no epoll.
   epoll_ctl($op, $fn, $ev) && push @evs, [$fn, $op];
 }
 
@@ -183,8 +183,9 @@ sub _del { # close, allow reopening
 sub _schedAdd {
   my $h = $_[0];
   return if $h->{tryOnce};
-  my $w = int(($h->{openTime} - time()) * 1000 + .5) + REOPEN;
-  $w > 0 ? setTimeout { _add($h); } $w : &_add;
+  my $t = time();
+  my $w = int(($h->{openTime} - $t) * 1000 + .5) + REOPEN;
+  $w > 0 ? setTimeout { _add($h, time()); } $w : _add($h, $t);
 }
 
 sub doBlock {
@@ -203,7 +204,7 @@ sub _add {
   my $h = $_[0];
   my $s = $h->{open};
   return if !$s;
-  $h->{openTime} = time();
+  $h->{openTime} = $_[1];
   my $child;
   undef $_;
   ($child = $s->($h)) or $!{EINPROGRESS} or return &_schedAdd;
@@ -278,7 +279,7 @@ sub _event {
   }
 }
 
-# most simple event loop
+# event loop
 END {
   (@evs || epoll_wait(1, -1, \@evs) == 1) && _event() while ($fds);
 }
