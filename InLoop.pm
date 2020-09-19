@@ -8,6 +8,7 @@ use Linux::FD::Timer;
 use IO::Handle;
 use Fcntl;
 use InLoop::methods;
+use Errno qw(EAGAIN);
 
 use Exporter 'import';
 our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
@@ -50,8 +51,10 @@ sub setInterval (&$) {
   my ($func, $ms) = @_;
   my $secs = $ms / 1000;
   _createTimer($secs, $secs, sub {
-    sysread($_, $a, 4096);
+    my $tmp;
+    sysread($_, $tmp, 4096);
     &$func;
+    1;
   });
 }
 
@@ -138,19 +141,21 @@ sub exitInLoop {
 sub _epoll_ctl {
   my ($op, $fn, $ev) = @_;
   # true when failed. Assume file - no epoll.
-  epoll_ctl($op, $fn, $ev) && push @evs, [$fn, $op];
+  epoll_ctl($op, $fn, $ev) && push @evs, [$fn, $ev];
 }
 
 sub _epollCtl {
   my ($op, $h) = @_;
   my $nfh = fileno $h->{fh};
   my $nout = fileno $h->{out};
+  my $r = 0;
   if ($nfh == $nout) {
-    _epoll_ctl($op, $nfh, $h->{outEv} ? EPOLLIN | EPOLLOUT | EPOLLONESHOT : EPOLLIN);
+    $r = _epoll_ctl($op, $nfh, $h->{outEv} ? EPOLLIN | EPOLLOUT | EPOLLONESHOT : EPOLLIN);
   } elsif ($h->{outEv} || $op != EPOLL_CTL_MOD) {
-    _epoll_ctl($op, $nfh, EPOLLIN) if $op != EPOLL_CTL_MOD;
+    $r = _epoll_ctl($op, $nfh, EPOLLIN) if $op != EPOLL_CTL_MOD;
     _epoll_ctl($op, $nout, $h->{outEv} ? EPOLLOUT | EPOLLONESHOT : 0);
   }
+  $h->{EOFErr} = $r ? 0 : EAGAIN;
 }
 
 sub _del { # close, allow reopening
@@ -256,17 +261,21 @@ sub _event {
   } else {
     my $fh = $h->{fh};
     my $fn = fileno $fh;
-    my $i;
+    my ($i, $r);
     my $d = \$h->{dataIn};
-    while (sysread($fh, $$d, 4096, length($$d) + 0)) {
+    while ($r = sysread($fh, $$d, 4096, length($$d) + 0)) {
       while($i = index($$d, "\n") + 1) {
         $_ = substr($$d, 0, $i, '');
         $e->($h);
         return if !$fds[$fn]; # $h was deleted via evOff! bail.
       }
+      if ($r < 4096) {
+        $! = $h->{EOFErr};
+        last;
+      }
     }
-    if (!$h->{lineOnly} && ($_ = $h->{dataIn}) ne '') {
-      $h->{dataIn} = '';
+    if (!$h->{lineOnly} && ($_ = $$d) ne '') {
+      $$d = '';
       my $err = $!;
       $e->($h);
       $! = $err;
