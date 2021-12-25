@@ -25,7 +25,7 @@ sub httpResponse {
       $ctype = 'text/plain';
     }
   }
-  $header .= "\r\n" if $header ne '' and !$header =~ /\r\n$/s;
+  $header .= "\r\n" if $header ne '' and $header !~ /\r\n$/;
   $h->write(
     "HTTP/1.1 $status\r\n".
     "Server: HTTPInLoop\r\n".
@@ -34,6 +34,16 @@ sub httpResponse {
     "Content-Length: ${\(length($data) + 0)}\r\n".
     "Connection: keep-alive\r\n$header\r\n");
   $h->writeRef(\$data);
+}
+
+sub say {
+  my ($h, $text) = @_;
+  $h->httpResponse(200, $text);
+}
+
+sub redirect {
+  my ($h, $l) = @_;
+  $h->httpResponse(301, '', undef, "Location: $l");
 }
 
 package HTTPServer;
