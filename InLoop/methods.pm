@@ -2,7 +2,6 @@ use strict;
 
 package InLoop::methods;
 use Errno qw(EAGAIN);
-use Data::Dumper;
 
 sub evOff {
   my $h = shift;
