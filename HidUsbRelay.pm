@@ -15,8 +15,8 @@ sub new {
 sub _exec {
   my ($this, $params) = @_;
   evOn {
-    open($_, "hidusb-relay-cmd$this->{boardId} $params|");
-  };
+    open($_, "/usr/local/bin/hidusb-relay-cmd$this->{boardId} $params|");
+  } evOnce;
 }
 
 sub _sw {
@@ -29,7 +29,7 @@ sub _sw {
 sub _cmd {
   my $this = shift;
   my $params = "@_";
-  evOnce evLine {
+  evLine {
     $this->{cb}->($_);
   } $this->_exec($params);
 }
@@ -47,7 +47,7 @@ sub off {
 sub state {
   my ($this, $sw, $cb) = &_sw;
   my $bit = 1 << $sw - 1;
-  evOnce evLine {
+  evLine {
     # Board ID=[T39NB] State: 02 (hex)
     s/.*?State: (..).*/$1/;
     $_ = hex($_);
