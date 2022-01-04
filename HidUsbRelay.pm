@@ -3,7 +3,8 @@ use strict;
 package HidUsbRelay;
 use InLoop;
 
-use constant UPDATE_AFTER => 60; # seconds
+use constant UPDATE_AFTER => 60; # recache state after n seconds
+use constant BUTTON_PRESS => 250; # milliseconds
 
 sub new {
   my ($package, $boardId, $sw) = @_;
@@ -32,6 +33,12 @@ sub __exec { # don't use $this
   } evOnce;
 }
 
+sub _flip {
+  my ($this, $sw, $state) = @_;
+  $this->{state}->{$sw} = $state;
+  __exec("$this->{boardId}_$sw=$state");
+}
+
 sub _sw {
   my $this = shift;
   my $sw = shift;
@@ -41,14 +48,12 @@ sub _sw {
 
 sub on {
   my ($this, $sw) = &_sw;
-  __exec("$this->{boardId}_$sw=1");
-  $this->{state}->{$sw} = 1;
+  $this->_flip($sw, 1);
 }
 
 sub off {
   my ($this, $sw) = &_sw;
-  __exec("$this->{boardId}_$sw=0");
-  $this->{state}->{$sw} = 0;
+  $this->_flip($sw, 0);
 }
 
 sub state {
@@ -64,9 +69,9 @@ sub button {
   my ($this, $sw) = &_sw;
   evHup {
     setTimeout {
-      __exec("$this->{boardId}_$sw=0");
-    } 250;
-  } __exec("$this->{boardId}_$sw=1");
+      $this->_flip($sw, 0);
+    } BUTTON_PRESS;
+  } $this->_flip($sw, 1);
 }
 
 1;
