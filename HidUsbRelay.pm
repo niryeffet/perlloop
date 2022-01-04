@@ -4,18 +4,22 @@ package HidUsbRelay;
 use InLoop;
 
 sub new {
-  my ($package, $boardId, $sw, $cb) = @_;
-  bless {
-    boardId => $boardId ne '' ? " ID=$boardId" : '',
+  my ($package, $boardId, $sw) = @_;
+  my $this = bless {
+    boardId => $boardId,
     sw => $sw,
-    cb => $cb || sub { }
+    state => {}
   };
+  evLine {
+    $this->{state}->{$1} = $2 if /^$boardId\_(\d)\=([1|0])/;
+  } $this->_exec();
+  $this;
 }
 
 sub _exec {
   my ($this, $params) = @_;
   evOn {
-    open($_, "/usr/local/bin/hidusb-relay-cmd$this->{boardId} $params|");
+    open($_, "/usr/bin/usbrelay $params 2>/dev/null|");
   } evOnce;
 }
 
@@ -26,42 +30,37 @@ sub _sw {
   ($this, $sw, @_);
 }
 
-sub _cmd {
-  my $this = shift;
-  my $params = "@_";
-  evLine {
-    $this->{cb}->($_);
-  } $this->_exec($params);
-}
-
 sub on {
   my ($this, $sw) = &_sw;
-  $this->_cmd('on', $sw);
+  $this->_exec("$this->{boardId}_$sw=1");
+  $this->{state}->{$sw} = 1;
 }
 
 sub off {
   my ($this, $sw) = &_sw;
-  $this->_cmd('off', $sw);
+  $this->_exec("$this->{boardId}_$sw=0");
+  $this->{state}->{$sw} = 0;
 }
 
 sub state {
   my ($this, $sw, $cb) = &_sw;
-  my $bit = 1 << $sw - 1;
+  my $ret = $this->{state}->{$sw};
+  return &$cb($ret) if defined($ret);
+  my $b = $this->{boardId};
   evLine {
-    # Board ID=[T39NB] State: 02 (hex)
-    s/.*?State: (..).*/$1/;
-    $_ = hex($_);
-    &$cb($bit ? $_ & $bit : $_);
-  } $this->_exec("state");
+    $this->{state}->{$sw} = $ret = $1 if /^$b\_$sw=([1|0])/;
+  } evHup {
+    &$cb($ret);
+  } $this->_exec();
 }
 
 sub button {
   my ($this, $sw) = &_sw;
   evHup {
     setTimeout {
-      $this->_cmd('off', $sw);
+      $this->_exec("$this->{boardId}_$sw=0");
     } 250;
-  } $this->_cmd('on', $sw);
+  } $this->_exec("$this->{boardId}_$sw=1");
 }
 
 1;
