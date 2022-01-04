@@ -3,21 +3,30 @@ use strict;
 package HidUsbRelay;
 use InLoop;
 
+use constant UPDATE_AFTER => 60; # seconds
+
 sub new {
   my ($package, $boardId, $sw) = @_;
   my $this = bless {
     boardId => $boardId,
     sw => $sw,
-    state => {}
+    state => {},
   };
-  evLine {
-    $this->{state}->{$1} = $2 if /^$boardId\_(\d)\=([1|0])/;
-  } $this->_exec();
+  $this->_updateState();
   $this;
 }
 
-sub _exec {
-  my ($this, $params) = @_;
+sub _updateState {
+  my $this = shift;
+  $this->{update} = time() + UPDATE_AFTER;
+  my $b = $this->{boardId};
+  evLine {
+    $this->{state}->{$1} = $2 if /^$b\_(\d)\=([1|0])/;
+  } __exec();
+}
+
+sub __exec { # don't use $this
+  my $params = shift;
   evOn {
     open($_, "/usr/bin/usbrelay $params 2>/dev/null|");
   } evOnce;
@@ -32,35 +41,32 @@ sub _sw {
 
 sub on {
   my ($this, $sw) = &_sw;
-  $this->_exec("$this->{boardId}_$sw=1");
+  __exec("$this->{boardId}_$sw=1");
   $this->{state}->{$sw} = 1;
 }
 
 sub off {
   my ($this, $sw) = &_sw;
-  $this->_exec("$this->{boardId}_$sw=0");
+  __exec("$this->{boardId}_$sw=0");
   $this->{state}->{$sw} = 0;
 }
 
 sub state {
   my ($this, $sw, $cb) = &_sw;
   my $ret = $this->{state}->{$sw};
-  return &$cb($ret) if defined($ret);
-  my $b = $this->{boardId};
-  evLine {
-    $this->{state}->{$sw} = $ret = $1 if /^$b\_$sw=([1|0])/;
-  } evHup {
-    &$cb($ret);
-  } $this->_exec();
+  return &$cb($ret) if defined($ret) and time() < $this->{update};
+  evHup {
+    &$cb($this->{state}->{$sw});
+  } $this->_updateState();
 }
 
 sub button {
   my ($this, $sw) = &_sw;
   evHup {
     setTimeout {
-      $this->_exec("$this->{boardId}_$sw=0");
+      __exec("$this->{boardId}_$sw=0");
     } 250;
-  } $this->_exec("$this->{boardId}_$sw=1");
+  } __exec("$this->{boardId}_$sw=1");
 }
 
 1;
