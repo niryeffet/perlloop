@@ -1,6 +1,7 @@
 use strict;
 
 package HidUsbRelay;
+use lib '.';
 use InLoop;
 
 use constant UPDATE_AFTER => 60; # recache state after n seconds
