@@ -9,6 +9,7 @@ use IO::Handle;
 use Fcntl;
 use InLoop::methods;
 use Errno qw(EAGAIN);
+use Scalar::Util 'looks_like_number';
 
 use Exporter 'import';
 our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
@@ -210,9 +211,10 @@ sub _add {
   my $s = $h->{open};
   return if !$s;
   $h->{openTime} = $_[1];
-  my $child;
   undef $_;
-  ($child = $s->($h)) or $!{EINPROGRESS} or return &_schedAdd;
+  my $child = $s->($h);
+  $child = open($h->{fh}, $child) if !looks_like_number($child) && $child ne '';
+  $child or $!{EINPROGRESS} or return &_schedAdd;
   $h->{fh} ||= $_;
   $h->{child} = $child if $child > 1; # pid of subprocess
   $fds[fileno nonblock($h->{fh})] = $h;

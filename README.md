@@ -23,17 +23,19 @@ Also, it was initially written long time ago, when perl was still popular.
 The default input and pattern-searching variable ($\_) makes it super easy to write code and focus only on the application logic, with zero boiler-plate code. See example below.
 
 # use Inloop;
-## An easy to use event Loop for perl
+## An easy to use event loop for perl
 
 The event loop will start working when the program reaches perl's END block.
 
-Most ev\* methods can be chained to form non blocking callback by events. The only exception is evEmpty.
+Most ev\* methods can be chained to form non blocking callback by events. The only exception is evEmpty. Example:
+
+evOnce evOn { '/bin/ls -l|' } evLine { print };
 
 Many ev\* methods' first argument is a code block. Code blocks first parameter is the ev handle, blessed by InLoop::methods. Always $h in this doc. There could be only one code block for each ev\* type. Calling a specific ev\* method again will override the previos code.
 
-evOn { } ... - required. The code block should open() the communication and return the open() return data and $! should be set to the error from open(). The FILEHANDLE part of open MUST be either $\_ or $h->{fh}. If input and output has seperate fileno, like in open2(), $h->{fh} should be used for the input, and $h->{out} for the output.
-The open() above can ve also connect(), accept() and listen().
+evOn { } ... - required. The code block should open() the communication and return the open() return data and $! should be set to the error from open(). The FILEHANDLE part of open MUST be either $\_ or $h->{fh}. If input and output has seperate fileno, like in open2(), $h->{fh} should be used for the input, and $h->{out} for the output. The open() above can ve also connect(), accept() and listen().
 By default, evOn block will be called immediate again after the filehandle was closed. There is one second delay between recurring attemts. evOn returns a handle ($h) that is blessed by InLoop::methods.
+If evOn code block returns a string that does not looks\_line\_number() it will be open()ed for input. See example above.
 
 evOnce ... - optional. The evOn code block will not be executed again after it closed and the ev handle will not be useful anymore.
 
