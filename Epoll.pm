@@ -21,7 +21,8 @@ use constant {
   EPOLL_CTL_MOD  => 3,
   EPOLL_FD       => syscall(SYS_epoll_create1(), EPOLL_CLOEXEC),
   SYS_EPOLL_CTL  => SYS_epoll_ctl(),
-  SYS_EPOLL_WAIT => SYS_epoll_wait(),
+  # raspberry pi / bullseye / aarch64 is missing SYS_epoll_wait. epoll_pwait will do.
+  SYS_EPOLL_WAIT => eval { SYS_epoll_wait() } || SYS_epoll_pwait(),
 };
 
 sub epoll_ctl1 {
