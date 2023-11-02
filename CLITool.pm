@@ -102,7 +102,7 @@ sub newProcessor {
        @promptAccum = ();
        chomp; s/\s*$//; s/^\s*//; s/\s+/ /g;
        my $success = $clis[0]->processCli($h, $methods);
-       $h->say("Unknow command '$_'.") if !$success;
+       $h->say("Unknown command '$_'.") if !$success;
        $h->write($prompts[0].PROMPT) if $success != 2;
     },
   };
