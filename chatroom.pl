@@ -132,7 +132,7 @@ evOn {
   $h->{op} = 1;
   1;
 } evOut {
-  shift->say('chatroom console. try "/help"');
+  shift->say('chatroom console. try "/help". Others can join on port 23456.');
   1;
 } $evLine;
 

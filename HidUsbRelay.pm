@@ -22,7 +22,12 @@ sub _updateState {
   my $this = shift;
   $this->{update} = time() + UPDATE_AFTER;
   my $b = $this->{boardId};
+  my $firstLine = 1;
   evLine {
+    if ($firstLine) {
+      $firstLine = 0;
+      $this->{state} = {};
+    }
     $this->{state}->{$1} = $2 if /^$b\_(\d)\=([1|0])/;
   } __exec();
 }
