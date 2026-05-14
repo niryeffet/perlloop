@@ -19,16 +19,15 @@ sub new {
 }
 
 sub _updateState {
-  my $this = shift;
-  $this->{update} = time() + UPDATE_AFTER;
+  my ($this, $cb) = @_;
   my $b = $this->{boardId};
-  my $firstLine = 1;
+  my $newState = {};
   evLine {
-    if ($firstLine) {
-      $firstLine = 0;
-      $this->{state} = {};
-    }
-    $this->{state}->{$1} = $2 if /^$b\_(\d)\=([1|0])/;
+    $newState->{$1} = $2 if /^$b\_(\d)\=([1|0])/;
+  } evHup {
+    $this->{state} = $newState;
+    $this->{update} = time() + UPDATE_AFTER;
+    &$cb if $cb;
   } __exec();
 }
 
@@ -66,9 +65,9 @@ sub state {
   my ($this, $sw, $cb) = &_sw;
   my $ret = $this->{state}->{$sw};
   return &$cb($ret) if defined($ret) and time() < $this->{update};
-  evHup {
+  $this->_updateState(sub {
     &$cb($this->{state}->{$sw});
-  } $this->_updateState();
+  });
 }
 
 sub button {
