@@ -6,6 +6,7 @@ use InLoop;
 
 use constant UPDATE_AFTER => 60; # recache state after n seconds
 use constant BUTTON_PRESS => 250; # milliseconds
+use constant REPORT_ERRORS => 3; # report after 3 consecutive errors
 
 sub new {
   my ($package, $boardId, $sw) = @_;
@@ -13,6 +14,7 @@ sub new {
     boardId => $boardId,
     sw => $sw,
     state => {},
+    error => 0,
   };
   $this->_updateState();
   $this;
@@ -25,8 +27,11 @@ sub _updateState {
   evLine {
     $newState->{$1} = $2 if /^$b\_(\d)\=([1|0])/;
   } evHup {
-    $this->{state} = $newState;
-    $this->{update} = time() + UPDATE_AFTER;
+    if (%$newState || $this->{error}++ == REPORT_ERRORS) {
+      $this->{state} = $newState;
+      $this->{update} = time() + UPDATE_AFTER;
+      $this->{error} = 0;
+    }
     &$cb if $cb;
   } __exec();
 }
