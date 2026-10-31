@@ -1,7 +1,10 @@
 use strict;
+use warnings;
 
 package CLITool;
-use lib '.';
+use File::Basename 'dirname';
+use Cwd 'abs_path';
+use lib dirname(abs_path(__FILE__));
 use InLoop;
 use TellAll;
 
@@ -47,7 +50,7 @@ sub addHelp {
     my $h = $_[0];
     if (/^$/ or /^\?/ ) {
       $h->say($_[1]->{prompt}->()."usage:");
-      $h->say($_->[1]) foreach sort { $a->[1] cmp $b->[1] } grep { $_->[1] ne '' } values %$cli;
+      $h->say($_->[1]) foreach sort { $a->[1] cmp $b->[1] } grep { defined($_->[1]) && $_->[1] ne '' } values %$cli;
       $h->say(".. - go back one level\n... - top level") if !$_[1]->{isAccum}->();
     } else {
       my $cmd = $_;
@@ -101,7 +104,7 @@ sub newProcessor {
        @cliAccum = ();
        @promptAccum = ();
        chomp; s/\s*$//; s/^\s*//; s/\s+/ /g;
-       my $success = $clis[0]->processCli($h, $methods);
+       my $success = $clis[0]->processCli($h, $methods) || 0;
        $h->say("Unknown command '$_'.") if !$success;
        $h->write($prompts[0].PROMPT) if $success != 2;
     },
@@ -141,6 +144,7 @@ sub console {
   $| = 1;
   evOn {
     my $h = shift;
+    $h->{fh} = *STDIN;
     $_ = *STDIN;
     $h->{out} = *STDOUT;
     $connected->add($h) if $connected;

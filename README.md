@@ -47,6 +47,10 @@ There could be either evLine or evIn. If both are declared, evLine is ignored.
 
 evLineOnly ... - optional. In evLine mode only, do not call evLine code block if the data is not a complete line with \n at the end.
 
+evMaxLine $bytes, ... - optional. Limit the maximum buffer size for incomplete lines without a newline to protect against unbounded memory growth.
+
+evReopen $ms, ... - optional. Custom delay in milliseconds before attempting to reconnect/reopen after a disconnect (default is 1000ms).
+
 evOut { } ... - optional. This code block will be executed only once when epoll\_wait wakes up with EPOLLOUT. It is recommended to use $h-\>write(), $h-\>say() or $h-\>writeRef() instead of evOut directly as it will handle EAGAIN with addtional evOut automatically. Using evOut directly and $h-\>write() (or say() or writeRef()) simultanously will yield undesired results as there could be only one evOut.
 
 evHup { } ... - optional. The code block will be called after the filehandle was closed. Usually used in combination with evOnce. Without evOnce, the return value from evHup code block will be considered - zero means do not call evOn code block again, similar to evOnce. A positive value is required to call evOn code block again.
@@ -59,9 +63,9 @@ exitInLoop - will close all filehandles and will exit the program.
 
 nonblock filehandle - set filehandle nonblocking opration. This will be done automatically for evOn for $\_ or $h->{fh} and $h->{out}, however, in cases of connect(), in orde to prevent blocking the event loop, evOn code block should set the socket filehandle in nonblocking mode before calling connect() and EINPROGRESS will be handled by the event loop.
 
-SetTimeout { } milliseconds - the code block will be executed once after milliseconds wait period. The return value is a handler blessed by InLoop::methods, normally to be able to cancel operation with $h-\>evOff.
+setTimeout { } milliseconds - the code block will be executed once after milliseconds wait period (passing 0 runs on the immediate next tick). The return value is a handler blessed by InLoop::methods, normally to be able to cancel operation with $h-\>evOff.
 
-SetInterval { } milliseconds - the code block will be executed after every milliseconds. The return value is a handler blessed by InLoop::methods, normally to be able to cancel operation with $h-\>evOff.
+setInterval { } milliseconds - the code block will be executed after every milliseconds. The return value is a handler blessed by InLoop::methods, normally to be able to cancel operation with $h-\>evOff.
 
 Examples:
 
@@ -76,7 +80,7 @@ evOnce evOn { someIO } evHup { setTimeout { something; } 1000; }; # do something
 use strict;
 use Socket;
 use IPC::Open2;
-use lib '.';
+use lib 'lib';
 use InLoop;
 
 my $lircd = '/var/run/lirc/lircd';
@@ -122,11 +126,11 @@ evOn {                                        # $_ is the filehandler
 ```
 
 # use TellAll;
-TellAll is a simple broadcast mechanism. It allows output destinations to "register" (using the add() method) to receive communication. A newly created TellAll object, without add()ing destinations will ingore requests to write() or say(). Each destination added MUST be an object with writeRef() method implemented, normally an InLoop object, created by evOn method. A destination can be remove()ed or checked if existed using is().
+TellAll is a simple broadcast mechanism. It allows output destinations to "register" (using the add() method) to receive communication. A newly created TellAll object, without add()ing destinations will ingore requests to write() or say(). Each destination added MUST be an object with writeRef() method implemented, normally an InLoop object, created by evOn method. A destination can be remove()ed or checked if existed using is(). Active destinations can be counted using count() (or size()).
 
 TellAll keeps track of all TellAlls so a removeAll() call can make sure a destination was removed from all TellAlls.
 
 BUGS:
 TellAll can be chained, however, that is discouraged as it can also be looped which will result in memory overflow.
 
-See chatroom.pl for example.
+See eg/chatroom.pl for example.

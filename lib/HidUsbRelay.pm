@@ -1,8 +1,12 @@
 use strict;
 
 package HidUsbRelay;
-use lib '.';
+use File::Basename 'dirname';
+use Cwd 'abs_path';
+use lib dirname(abs_path(__FILE__));
 use InLoop;
+
+our $USBRELAY_BIN = $ENV{USBRELAY_BIN} || '/usr/bin/usbrelay';
 
 use constant UPDATE_AFTER => 60; # recache state after n seconds
 use constant BUTTON_PRESS => 250; # milliseconds
@@ -38,8 +42,10 @@ sub _updateState {
 
 sub __exec { # don't use $this
   my $params = shift;
+  my @cmd = ($USBRELAY_BIN);
+  push @cmd, $params if defined $params && length($params);
   evOn {
-    open($_, "/usr/bin/usbrelay $params 2>/dev/null|");
+    open($_, "-|", @cmd);
   } evOnce;
 }
 
@@ -69,6 +75,7 @@ sub off {
 sub state {
   my ($this, $sw, $cb) = &_sw;
   my $ret = $this->{state}->{$sw};
+  return $ret unless $cb;
   return &$cb($ret) if defined($ret) and time() < $this->{update};
   $this->_updateState(sub {
     &$cb($this->{state}->{$sw});

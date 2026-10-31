@@ -1,8 +1,11 @@
 use strict;
+use warnings;
 
 package TCPInLoop;
-use Socket;
-use lib '.';
+use Socket qw(:DEFAULT TCP_NODELAY SOMAXCONN SO_KEEPALIVE);
+use File::Basename 'dirname';
+use Cwd 'abs_path';
+use lib dirname(abs_path(__FILE__));
 use InLoop;
 
 use Exporter 'import';
@@ -13,8 +16,11 @@ sub tcpClient {
   my $port = shift;
   my $address = shift;
   evOn {
+    my $ip = inet_aton($address) or return 0;
     socket($_, PF_INET, SOCK_STREAM, IPPROTO_TCP) or return 0;
-    connect(nonblock($_), sockaddr_in($port, inet_aton($address)));
+    setsockopt($_, IPPROTO_TCP, TCP_NODELAY, 1);
+    setsockopt($_, SOL_SOCKET, SO_KEEPALIVE, 1);
+    connect(nonblock($_), sockaddr_in($port, $ip));
   } @_;
 }
 
@@ -29,10 +35,14 @@ sub tcpServer {
     setsockopt($_, SOL_SOCKET, SO_REUSEADDR, 1) and
     bind($_, pack_sockaddr_in($port, inet_aton($address))) and
     ($h->{port} = $port || (sockaddr_in(getsockname($_)))[0]) and
-    listen($_, 128) or (print(STDERR "can't bind or listen: $!\n"), close($_), return 0);
+    listen($_, SOMAXCONN) or (print(STDERR "can't bind or listen: $!\n"), close($_), return 0);
   } evIn {
-    my $s;
-    evOn { $_ = $s; 1; } $evMethods if accept($s, $_);
+    while (accept(my $s, $_)) {
+      setsockopt($s, IPPROTO_TCP, TCP_NODELAY, 1);
+      setsockopt($s, SOL_SOCKET, SO_KEEPALIVE, 1);
+      evOn { $_ = $s; 1; } $evMethods;
+    }
+    1;
   };
 }
 

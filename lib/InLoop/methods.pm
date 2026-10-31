@@ -1,4 +1,5 @@
 use strict;
+use warnings;
 
 package InLoop::methods;
 use Errno qw(EAGAIN);
@@ -55,11 +56,13 @@ sub writeRef {
 
 sub write {
   my ($h, $d) = @_;
+  $d = '' unless defined $d;
   writeRef($h, \$d);
 }
 
 sub say {
   my ($h, $d) = @_;
+  $d = '' unless defined $d;
   writeRef($h, \"$d\n");
 }
 

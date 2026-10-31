@@ -1,7 +1,11 @@
 use strict;
+use warnings;
 
 package InLoop;
-use lib '.';
+our $VERSION = '0.02';
+use File::Basename 'dirname';
+use Cwd 'abs_path';
+use lib dirname(abs_path(__FILE__));
 use Epoll;
 use Time::HiRes 'time';
 use Linux::FD::Timer;
@@ -13,7 +17,8 @@ use Scalar::Util 'looks_like_number';
 
 use Exporter 'import';
 our @EXPORT = qw(setTimeout setInterval nonblock exitInLoop
-                 evOn evLine evHup evIn evOut evOnce evLineOnly evEmpty);
+                 evOn evLine evHup evIn evOut evOnce evLineOnly evEmpty
+                 evMaxLine evReopen);
 
 use constant {
  REOPEN => 1000, # reopen attempt after n ms
@@ -25,32 +30,35 @@ my (@fds, @evs);
 my $fds = 0;
 
 #ignore some signals, event will rise
-$SIG{HUP} = $SIG{PIPE} = $SIG{CHLD} = 'IGNORE';
+$SIG{HUP} = $SIG{PIPE} = 'IGNORE';
 
 sub getOpenTime {
   $_[0]->{openTime};
 }
 
 sub _createTimer {
-  my ($value, $interval, $func) = @_;
+  my ($value, $interval, $func, @opts) = @_;
   evOn(sub {
     $_ = Linux::FD::Timer->new('monotonic') or return 0;
-    $_->set_timeout($value, $interval);
+    defined($interval) ? $_->set_timeout($value, $interval) : $_->set_timeout($value);
     1;
-  }, evInRef($func));
+  }, evInRef($func), @opts);
 }
 
 sub setTimeout (&$) {
   my ($func, $ms) = @_;
-  _createTimer($ms / 1000, undef, sub {
+  my $secs = ($ms && $ms > 0) ? ($ms / 1000) : 0.001;
+  _createTimer($secs, undef, sub {
+    my $h = shift;
     &$func;
-    &evOff;
-  });
+    evOff($h);
+    1;
+  }, evOnce());
 }
 
 sub setInterval (&$) {
   my ($func, $ms) = @_;
-  my $secs = $ms / 1000;
+  my $secs = ($ms && $ms > 0) ? ($ms / 1000) : 0.001;
   _createTimer($secs, $secs, sub {
     my $tmp;
     sysread($_, $tmp, 4096);
@@ -127,6 +135,20 @@ sub evLineOnly (@) {
   $h;
 }
 
+sub evMaxLine ($@) {
+  my $max = shift;
+  my $h = &_agEv;
+  $h->{maxLine} = $max;
+  $h;
+}
+
+sub evReopen ($@) {
+  my $ms = shift;
+  my $h = &_agEv;
+  $h->{reopen} = $ms;
+  $h;
+}
+
 sub evOff ($) {
   my $h = $_[0];
   delete @$h{'open', 'outEv', 'dataOut', 'off'};
@@ -136,6 +158,7 @@ sub evOff ($) {
 
 sub exitInLoop {
   evOff($_) foreach grep { defined } @fds;
+  @evs = ();
   0;
 }
 
@@ -169,6 +192,9 @@ sub _del { # close, allow reopening
     $fds[$nOut] = undef;
     if ($nOut > 2) {
       close($out);
+      $h->{exitStatus} = $?;
+      $h->{exitCode} = $? >> 8;
+      $? = 0;
     } else {
       # never close stdin stdout stderr
       epoll_ctl(EPOLL_CTL_DEL, $nOut);
@@ -177,6 +203,9 @@ sub _del { # close, allow reopening
   }
   if ($nFh > 2) {
     close($fh);
+    $h->{exitStatus} = $? unless exists $h->{exitStatus};
+    $h->{exitCode} = $? >> 8 unless exists $h->{exitCode};
+    $? = 0;
   } else {
     # never close stdin stdout stderr
     epoll_ctl(EPOLL_CTL_DEL, $nFh);
@@ -188,9 +217,10 @@ sub _del { # close, allow reopening
 
 sub _schedAdd {
   my $h = $_[0];
-  return if $h->{tryOnce};
+  return if $h->{tryOnce} || !$h->{open};
   my $t = time();
-  my $w = int(($h->{openTime} - $t) * 1000 + .5) + REOPEN;
+  my $reopen = defined($h->{reopen}) ? $h->{reopen} : REOPEN;
+  my $w = int(($h->{openTime} - $t) * 1000 + .5) + $reopen;
   $w > 0 ? setTimeout { _add($h, time()); } $w : _add($h, $t);
 }
 
@@ -211,12 +241,16 @@ sub _add {
   my $s = $h->{open};
   return if !$s;
   $h->{openTime} = $_[1];
-  undef $_;
+  local $_;
   my $child = $s->($h);
-  $child = open($h->{fh}, $child) if !looks_like_number($child) && $child ne '';
-  $child or $!{EINPROGRESS} or return &_schedAdd;
+  if (defined $child) {
+    $child = open($h->{fh}, $child) if !looks_like_number($child) && $child ne '';
+    $child or $!{EINPROGRESS} or return &_schedAdd;
+    $h->{child} = $child if looks_like_number($child) && $child > 1; # pid of subprocess
+  } else {
+    $!{EINPROGRESS} or return &_schedAdd;
+  }
   $h->{fh} ||= $_;
-  $h->{child} = $child if $child > 1; # pid of subprocess
   $fds[fileno nonblock($h->{fh})] = $h;
   ++$fds;
   if ($h->{out}) {
@@ -229,8 +263,8 @@ sub _add {
 
 sub _hangup {
   my $h = shift;
+  _del($h);
   if ($h->{hup}->($h) && !$h->{tryOnce}) {
-    _del($h);
     _schedAdd($h);
   } else {
     evOff($h);
@@ -265,11 +299,18 @@ sub _event {
     my $fn = fileno $fh;
     my ($i, $r);
     my $d = \$h->{dataIn};
-    while ($r = sysread($fh, $$d, 4096, length($$d) + 0)) {
+    $$d = '' unless defined $$d;
+    my $maxLine = $h->{maxLine};
+    while ($r = sysread($fh, $$d, 4096, length($$d))) {
       while($i = index($$d, "\n") + 1) {
         $_ = substr($$d, 0, $i, '');
         $e->($h);
         return if !$fds[$fn]; # $h was deleted via evOff! bail.
+      }
+      if ($maxLine && length($$d) > $maxLine) {
+        $$d = '';
+        _hangup($h);
+        return;
       }
       if ($r < 4096) {
         $! = $h->{EOFErr};
@@ -296,3 +337,94 @@ END {
 }
 
 1;
+
+__END__
+
+=head1 NAME
+
+InLoop - Lightweight event-driven asynchronous I/O framework for Linux
+
+=head1 SYNOPSIS
+
+  use InLoop;
+
+  # Read lines from a command pipe with automatic reconnection
+  evOn {
+    'tail -f /var/log/syslog|'
+  } evLine {
+    print "Log line: $_";
+  };
+
+  # One-shot timer
+  setTimeout {
+    print "Executed after 500ms\n";
+  } 500;
+
+  # Periodic interval
+  my $timer = setInterval {
+    print "Tick\n";
+  } 1000;
+
+  # Stop timer
+  $timer->evOff;
+
+  # Exit the event loop
+  exitInLoop();
+
+=head1 DESCRIPTION
+
+InLoop provides an asynchronous event loop for Linux using direct Linux
+epoll and timerfd primitives with zero external C dependencies.
+
+Event monitoring begins as soon as handles are declared and starts running
+automatically in an END block, avoiding boilerplate run-loop invocations.
+
+=head1 FUNCTIONS
+
+=over 4
+
+=item B<evOn { ... } @methods>
+
+Registers an asynchronous source. The code block executes to create the
+filehandle or child process. Automatically reconnects on close unless
+paired with C<evOnce>.
+
+=item B<evLine { ... }>
+
+Processes incoming input in line-buffered mode.
+
+=item B<evLineOnly>
+
+Optional modifier. Only dispatches complete newline-terminated lines.
+
+=item B<evMaxLine($bytes)>
+
+Optional modifier. Enforces a maximum buffer limit for lines without newlines.
+
+=item B<evReopen($ms)>
+
+Optional modifier. Configures reconnect delay in milliseconds.
+
+=item B<setTimeout { ... } $ms>
+
+Executes a callback once after the specified millisecond delay.
+
+=item B<setInterval { ... } $ms>
+
+Executes a callback repeatedly every C<$ms> milliseconds.
+
+=item B<exitInLoop()>
+
+Closes all active handles and terminates the event loop.
+
+=back
+
+=head1 AUTHOR
+
+Nir Yeffet
+
+=head1 LICENSE
+
+Same as Perl itself.
+
+=cut
