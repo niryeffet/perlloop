@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Socket;
-use Test::More tests => 8;
+use Test::More tests => 12;
 
 use InLoop;
 use TCPInLoop;
@@ -33,19 +33,49 @@ my $c2 = tcpClient($port, '127.0.0.1', evLine {
 });
 $c2->say("client2_msg");
 
-# Test IPv6 server and client on ::1
-my $v6_received = '';
-my $server_v6 = tcpServer(0, '::1', evLine {
+# Test dual-stack server listening on default wildcard (no address specified)
+my $default_v4_received = '';
+my $default_v6_received = '';
+my $server_default = tcpServer(0, undef, evLine {
   my $h = shift;
-  $h->say("v6_echo:$_");
+  $h->say("default_echo:$_");
 });
-my $port_v6 = $server_v6 ? $server_v6->{port} : 0;
-ok($port_v6 > 0, "IPv6 server listening on dynamic port $port_v6");
+my $port_default = $server_default ? $server_default->{port} : 0;
+ok($port_default > 0, "default server listening on dynamic dual-stack port $port_default");
 
-my $c_v6 = tcpClient($port_v6, '::1', evLine {
-  $v6_received .= $_;
+# Connect IPv4 client to default dual-stack server
+my $c_def_v4 = tcpClient($port_default, '127.0.0.1', evLine {
+  $default_v4_received .= $_;
 });
-$c_v6->say("hello_ipv6");
+$c_def_v4->say("from_v4_client");
+
+# Connect IPv6 client to the SAME default dual-stack server
+my $c_def_v6 = tcpClient($port_default, '::1', evLine {
+  $default_v6_received .= $_;
+});
+$c_def_v6->say("from_v6_client");
+
+# Test 'loopback' mode (listens on both ::1 and 127.0.0.1 on the same port)
+my $loopback_v4_received = '';
+my $loopback_v6_received = '';
+my $server_loopback = tcpServer(0, 'loopback', evLine {
+  my $h = shift;
+  $h->say("loopback_echo:$_");
+});
+my $port_loopback = $server_loopback ? $server_loopback->{port} : 0;
+ok($port_loopback > 0, "loopback server listening on dynamic port $port_loopback");
+
+# Connect IPv4 client to loopback server
+my $c_lb_v4 = tcpClient($port_loopback, '127.0.0.1', evLine {
+  $loopback_v4_received .= $_;
+});
+$c_lb_v4->say("from_loopback_v4");
+
+# Connect IPv6 client to loopback server
+my $c_lb_v6 = tcpClient($port_loopback, '::1', evLine {
+  $loopback_v6_received .= $_;
+});
+$c_lb_v6->say("from_loopback_v6");
 
 # Connect client to an invalid unresolvable address
 my $failed_connected = 0;
@@ -57,7 +87,10 @@ ok(defined $c_bad, 'tcpClient with invalid address created handle without crashi
 setTimeout {
   is(scalar(@$server_received), 2, 'IPv4 server received messages from both clients');
   is($clients_responded, 2, 'both IPv4 clients received echoes from server');
-  like($v6_received, qr{v6_echo:hello_ipv6}, 'IPv6 client communicated successfully over ::1');
+  like($default_v4_received, qr{default_echo:from_v4_client}, 'default server accepted IPv4 client');
+  like($default_v6_received, qr{default_echo:from_v6_client}, 'default server accepted IPv6 client');
+  like($loopback_v4_received, qr{loopback_echo:from_loopback_v4}, 'loopback server accepted IPv4 client on 127.0.0.1');
+  like($loopback_v6_received, qr{loopback_echo:from_loopback_v6}, 'loopback server accepted IPv6 client on ::1');
   is($failed_connected, 0, 'invalid client did not connect');
   pass('TCP communication and error handling completed cleanly');
   exitInLoop();

@@ -1,8 +1,8 @@
 use strict;
 use warnings;
-use Test::More tests => 16;
+use Test::More tests => 18;
 
-my @modules = qw(InLoop Epoll TCPInLoop TellAll CLITool HTTPServer HidUsbRelay BlockSTDIO);
+my @modules = qw(InLoop Epoll TCPInLoop UNIXInLoop TellAll CLITool HTTPServer HidUsbRelay BlockSTDIO);
 
 for my $mod (@modules) {
   use_ok($mod);
