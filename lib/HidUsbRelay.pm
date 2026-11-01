@@ -1,6 +1,7 @@
 use strict;
 
 package HidUsbRelay;
+our $VERSION = '0.02';
 use File::Basename 'dirname';
 use Cwd 'abs_path';
 use lib dirname(abs_path(__FILE__));

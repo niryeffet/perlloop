@@ -17,6 +17,7 @@ our %status = (
   408 => '408 Request Timeout',
   413 => '413 Payload Too Large',
   431 => '431 Request Header Fields Too Large',
+  500 => '500 Internal Server Error',
   501 => '501 Not Implemented',
 );
 
@@ -25,13 +26,11 @@ sub httpResponse {
   my $status_code = $status;
   $status = $status{$status} || $status;
   $data = $status."\n" if !defined($data) && ($status_code !~ /^204\b/);
-  if (!defined($ctype)) {
-    if ((ref $data) =~ /^(HASH|ARRAY)$/) {
-      $ctype = 'application/json';
-      $data = eval { encode_json($data) } || $data;
-    } else {
-      $ctype = 'text/plain';
-    }
+  if ((ref $data) =~ /^(HASH|ARRAY)$/) {
+    $ctype = 'application/json' unless defined $ctype;
+    $data = eval { encode_json($data) } || $data;
+  } elsif (!defined($ctype)) {
+    $ctype = 'text/plain';
   }
   my $close = $h->{close};
   my $conn_hdr = $close ? 'close' : 'keep-alive';
@@ -58,7 +57,28 @@ sub redirect {
   $h->httpResponse(301, '', undef, "Location: $l");
 }
 
+sub json {
+  my ($h, $data, $status) = @_;
+  $h->httpResponse($status || 200, $data, 'application/json');
+}
+
+sub notFound {
+  my ($h, $msg) = @_;
+  $h->httpResponse(404, $msg);
+}
+
+sub badRequest {
+  my ($h, $msg) = @_;
+  $h->httpResponse(400, $msg);
+}
+
+sub serverError {
+  my ($h, $msg) = @_;
+  $h->httpResponse(500, $msg);
+}
+
 package HTTPServer;
+our $VERSION = '0.02';
 use File::Basename 'dirname';
 use Cwd 'abs_path';
 use lib dirname(abs_path(__FILE__));
@@ -146,17 +166,43 @@ sub httpServer {
         $h->{data} = $rest;
         next;
       }
-      my $cl_match = (split(/^content-length:\s*/mi, $_, 2))[1];
-      my $cl = defined($cl_match) ? int($cl_match) : 0;
-      my $body = substr($rest, 0, $cl, '');
-      return if length($body) < $cl; # waiting for body
-      $h->{data} = $rest;
+      my $header = $_;
+      my $is_chunked = ($header =~ /^transfer-encoding:\s*chunked\b/mi) ? 1 : 0;
+      my $body = '';
+      if ($is_chunked) {
+        my $cur = $rest;
+        my $complete = 0;
+        while ($cur =~ s/^([0-9a-fA-F]+)\r?\n//) {
+          my $len = hex($1);
+          if ($len == 0) {
+            if ($cur =~ s/^\r?\n//) {
+              $complete = 1;
+              last;
+            } else {
+              return;
+            }
+          }
+          if (length($cur) < $len + 2) {
+            return;
+          }
+          $body .= substr($cur, 0, $len, '');
+          $cur =~ s/^\r?\n//;
+        }
+        return unless $complete;
+        $h->{data} = $cur;
+      } else {
+        my $cl_match = (split(/^content-length:\s*/mi, $header, 2))[1];
+        my $cl = defined($cl_match) ? int($cl_match) : 0;
+        my $b = substr($rest, 0, $cl, '');
+        return if length($b) < $cl; # waiting for body
+        $body = $b;
+        $h->{data} = $rest;
+      }
       $h->{body} = /^content-type:\s*application\/json\b/mi ? eval { decode_json($body); } || $body : $body;
 
       my $ref = ref $router;
       my $status = 501;
       my $r = $router;
-      my $header = $_;
       $h->{close} = (/^connection:\s*close/mi || (/^[A-Z]+ \S+ HTTP\/1\.0/mi && !/^connection:\s*keep-alive/mi)) ? 1 : 0;
       my ($next, $qs);
       ($next, $_) = split /[ \r]/, $header, 3;

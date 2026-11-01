@@ -2,6 +2,7 @@ use strict;
 use warnings;
 
 package InLoop::methods;
+our $VERSION = '0.02';
 use Errno qw(EAGAIN);
 
 sub evOff {

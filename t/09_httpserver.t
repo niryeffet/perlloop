@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use Socket;
-use Test::More tests => 21;
+use Test::More tests => 24;
 
 use InLoop;
 use TCPInLoop;
@@ -23,7 +23,15 @@ $server_h = httpServer(0, '127.0.0.1', {
     },
     'json' => sub {
       my $h = shift;
-      $h->httpResponse(200, { success => 1, message => 'ok' });
+      $h->json({ success => 1, message => 'ok' });
+    },
+    'custom_400' => sub {
+      my $h = shift;
+      $h->badRequest('invalid parameter');
+    },
+    'custom_500' => sub {
+      my $h = shift;
+      $h->serverError('internal crash');
     },
     'query_test' => sub {
       my $h = shift;
@@ -39,7 +47,11 @@ $server_h = httpServer(0, '127.0.0.1', {
     'echo_json' => sub {
       my $h = shift;
       my $body = $h->{body};
-      $h->httpResponse(200, { echoed => $body });
+      $h->json({ echoed => $body });
+    },
+    'chunked_test' => sub {
+      my $h = shift;
+      $h->say("chunked_received:$h->{body}");
     },
   },
 }, {
@@ -123,6 +135,32 @@ my $c9 = tcpClient($port, '127.0.0.1', evLine {
 });
 $c9->write("HEAD /hello HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
 
+# Connect client 10: POST with Transfer-Encoding: chunked
+my $chunked_res = '';
+my $c10 = tcpClient($port, '127.0.0.1', evLine {
+  $chunked_res .= $_;
+});
+$c10->write(
+  "POST /chunked_test HTTP/1.1\r\n".
+  "Host: 127.0.0.1\r\n".
+  "Transfer-Encoding: chunked\r\n\r\n".
+  "4\r\nwiki\r\n5\r\npedia\r\n0\r\n\r\n"
+);
+
+# Connect client 11: GET /custom_400 (badRequest helper)
+my $bad_req_res = '';
+my $c11 = tcpClient($port, '127.0.0.1', evLine {
+  $bad_req_res .= $_;
+});
+$c11->write("GET /custom_400 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+
+# Connect client 12: GET /custom_500 (serverError helper)
+my $server_err_res = '';
+my $c12 = tcpClient($port, '127.0.0.1', evLine {
+  $server_err_res .= $_;
+});
+$c12->write("GET /custom_500 HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+
 setTimeout {
   like($client_res, qr{HTTP/1.1 200 Ok}, 'valid request status is 200');
   like($client_res, qr{Content-Type: text/plain}, 'content type is text/plain');
@@ -149,6 +187,10 @@ setTimeout {
   like($head_res, qr{HTTP/1.1 200 Ok}, 'HEAD request returned status 200');
   like($head_res, qr{Content-Length: 11}, 'HEAD request returned proper Content-Length');
   unlike($head_res, qr{\r\n\r\nHello World}, 'HEAD request omitted body');
+
+  like($chunked_res, qr{chunked_received:wikipedia}, 'chunked body assembled and received');
+  like($bad_req_res, qr{HTTP/1.1 400 Bad Request.*invalid parameter}s, 'badRequest helper returned 400 with custom message');
+  like($server_err_res, qr{HTTP/1.1 500 Internal Server Error.*internal crash}s, 'serverError helper returned 500 with custom message');
 
   pass('HTTP server processed all requests correctly');
   exitInLoop();

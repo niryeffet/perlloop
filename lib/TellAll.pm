@@ -2,6 +2,7 @@ use strict;
 use warnings;
 
 package TellAll;
+our $VERSION = '0.02';
 use Scalar::Util qw(refaddr weaken);
 
 our @all;

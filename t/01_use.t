@@ -1,12 +1,11 @@
 use strict;
 use warnings;
-use Test::More tests => 8;
+use Test::More tests => 16;
 
-use_ok('InLoop');
-use_ok('Epoll');
-use_ok('TCPInLoop');
-use_ok('TellAll');
-use_ok('CLITool');
-use_ok('HTTPServer');
-use_ok('HidUsbRelay');
-use_ok('BlockSTDIO');
+my @modules = qw(InLoop Epoll TCPInLoop TellAll CLITool HTTPServer HidUsbRelay BlockSTDIO);
+
+for my $mod (@modules) {
+  use_ok($mod);
+  no strict 'refs';
+  is(${"${mod}::VERSION"}, '0.02', "$mod VERSION is 0.02");
+}
