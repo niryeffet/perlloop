@@ -13,6 +13,7 @@ our %status = (
   200 => '200 Ok',
   204 => '204 No Content',
   400 => '400 Bad Request',
+  401 => '401 Unauthorized',
   404 => '404 Not Found',
   408 => '408 Request Timeout',
   413 => '413 Payload Too Large',
@@ -60,6 +61,11 @@ sub redirect {
 sub json {
   my ($h, $data, $status) = @_;
   $h->httpResponse($status || 200, $data, 'application/json');
+}
+
+sub unauthorized {
+  my ($h, $msg) = @_;
+  $h->httpResponse(401, $msg);
 }
 
 sub notFound {
@@ -191,8 +197,12 @@ sub httpServer {
         return unless $complete;
         $h->{data} = $cur;
       } else {
-        my $cl_match = (split(/^content-length:\s*/mi, $header, 2))[1];
-        my $cl = defined($cl_match) ? int($cl_match) : 0;
+        my $cl = 0;
+        if ($header =~ /^content-length:\s*(\d+)/mi) {
+          $cl = $1 * 1;
+        }
+        # my $cl_match = (split(/^content-length:\s*/mi, $header, 2))[1];
+        # my $cl = defined($cl_match) ? int($cl_match) : 0;
         my $b = substr($rest, 0, $cl, '');
         return if length($b) < $cl; # waiting for body
         $body = $b;
@@ -230,12 +240,13 @@ sub httpServer {
           }
         } elsif ($ref eq 'CODE' && /^\/?$/) {
           $h->{query} = _parseQuerystring($qs) if defined($qs);
-          $_ = $header;
+          $h->{header} = $_ = $header;
           $h->{cookie} = _parseCookie($1) if /^Cookie: ([^\r]*)/mi;
           $status = 0;
           $r->($h);
           delete $h->{query};
           delete $h->{cookie};
+          delete $h->{header};
           last;
         } else { last; }
       }
